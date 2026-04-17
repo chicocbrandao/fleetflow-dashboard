@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetFlow Dashboard — Stellantis</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+  --border: #475569; --text: #f1f5f9; --text2: #94a3b8;
+  --blue: #3b82f6; --green: #22c55e; --yellow: #eab308;
+  --red: #ef4444; --orange: #f97316; --purple: #a855f7;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Login Screen */
+.login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.login-overlay.hidden { display: none; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; text-align: center; }
+.login-card .logo { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+.login-card .logo span { color: var(--blue); }
+.login-card .tagline { color: var(--text2); font-size: 13px; margin-bottom: 32px; }
+.login-card input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; color: var(--text); font-size: 15px; margin-bottom: 16px; text-align: center; }
+.login-card input:focus { outline: none; border-color: var(--blue); }
+.login-card .login-btn { width: 100%; background: var(--blue); border: none; color: white; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.login-card .login-btn:hover { opacity: 0.9; }
+.login-card .error { color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
+.login-card .lock-icon { font-size: 48px; margin-bottom: 16px; }
+.app-content.locked { display: none; }
+
+.header { background: linear-gradient(135deg, #1e3a5f, #0f172a); padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 24px; font-weight: 700; }
+.header h1 span { color: var(--blue); }
+.header .subtitle { color: var(--text2); font-size: 13px; margin-top: 2px; }
+.header .refresh-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.header .refresh-btn:hover { background: var(--blue); }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+/* KPI Cards */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.kpi .label { color: var(--text2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi .value { font-size: 32px; font-weight: 700; margin: 4px 0; }
+.kpi .sub { font-size: 12px; color: var(--text2); }
+.kpi.blue .value { color: var(--blue); }
+.kpi.green .value { color: var(--green); }
+.kpi.yellow .value { color: var(--yellow); }
+.kpi.red .value { color: var(--red); }
+.kpi.orange .value { color: var(--orange); }
+.kpi.purple .value { color: var(--purple); }
+
+/* Sections */
+.section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.section h2 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section h2 .icon { font-size: 20px; }
+
+/* Vehicle Search */
+.search-box { display: flex; gap: 12px; margin-bottom: 16px; }
+.search-box input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--text); font-size: 16px; text-transform: uppercase; }
+.search-box input::placeholder { text-transform: none; color: var(--text2); }
+.search-box button { background: var(--blue); border: none; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; }
+.search-box button:hover { opacity: 0.9; }
+
+.vehicle-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.vehicle-card .plate-big { font-size: 28px; font-weight: 700; color: var(--blue); letter-spacing: 2px; }
+.vehicle-card .model-name { font-size: 16px; color: var(--text2); margin-top: 2px; }
+.vehicle-card .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 16px; }
+.vehicle-card .info-item { }
+.vehicle-card .info-item .lbl { font-size: 11px; color: var(--text2); text-transform: uppercase; }
+.vehicle-card .info-item .val { font-size: 15px; font-weight: 600; margin-top: 2px; }
+.status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.status-patio { background: #422006; color: var(--orange); }
+.status-finalizado { background: #052e16; color: var(--green); }
+.status-archived { background: #1e1b4b; color: var(--purple); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: var(--surface2); color: var(--text2); padding: 10px 12px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; position: sticky; top: 0; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--surface2); }
+tr:hover td { background: rgba(59,130,246,0.05); }
+.table-scroll { max-height: 500px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); }
+
+/* Measurement Section */
+.month-selector { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.month-selector select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+.month-selector .type-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.month-selector .type-toggle button { background: var(--bg); border: none; color: var(--text2); padding: 10px 16px; font-size: 13px; cursor: pointer; }
+.month-selector .type-toggle button.active { background: var(--blue); color: white; }
+.measurement-total { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; display: flex; gap: 32px; margin-bottom: 16px; flex-wrap: wrap; }
+.measurement-total .mt-item .mt-label { font-size: 11px; color: var(--text2); text-transform: uppercase; }
+.measurement-total .mt-item .mt-value { font-size: 22px; font-weight: 700; color: var(--blue); }
+
+/* Praça tabs */
+.praca-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.praca-tabs button { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 8px 20px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.praca-tabs button.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+/* Charts row */
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+@media (max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
+.chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.chart-box h3 { font-size: 14px; color: var(--text2); margin-bottom: 12px; }
+.chart-box canvas { max-height: 250px; }
+
+/* Loading */
+.loading { text-align: center; color: var(--text2); padding: 40px; }
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--surface2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state { text-align: center; padding: 32px; color: var(--text2); }
+.money { font-variant-numeric: tabular-nums; }
+.text-right { text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="lock-icon">&#128274;</div>
+    <div class="logo"><span>FleetFlow</span> Dashboard</div>
+    <div class="tagline">Stellantis · Salvador · Recife · Natal</div>
+    <input type="password" id="loginPassword" placeholder="Digite a senha de acesso" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="error" id="loginError">Senha incorreta. Tente novamente.</div>
+  </div>
+</div>
+
+<!-- App Content -->
+<div class="app-content locked" id="appContent">
+<div class="header">
+  <div>
+    <h1><span>FleetFlow</span> Dashboard</h1>
+    <div class="subtitle">Stellantis · Salvador · Recife · Natal</div>
+  </div>
+  <button class="refresh-btn" onclick="loadAll()">Atualizar Dados</button>
+</div>
+
+<div class="container">
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpis">
+    <div class="kpi blue"><div class="label">Total Veículos</div><div class="value" id="kpi-total">-</div><div class="sub" id="kpi-total-sub"></div></div>
+    <div class="kpi orange"><div class="label">Em Pátio</div><div class="value" id="kpi-patio">-</div><div class="sub" id="kpi-patio-sub"></div></div>
+    <div class="kpi green"><div class="label">Finalizados</div><div class="value" id="kpi-fin">-</div><div class="sub">Serviço concluído</div></div>
+    <div class="kpi yellow"><div class="label">Ativações</div><div class="value" id="kpi-ativ">-</div><div class="sub">No mês corrente</div></div>
+    <div class="kpi red"><div class="label">Desmobilizações</div><div class="value" id="kpi-desm">-</div><div class="sub">No mês corrente</div></div>
+    <div class="kpi purple"><div class="label">Medição Mês</div><div class="value money" id="kpi-medicao">-</div><div class="sub" id="kpi-medicao-sub"></div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Veículos por Praça</h3>
+      <canvas id="chartPraca"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Veículos por Status</h3>
+      <canvas id="chartStatus"></canvas>
+    </div>
+  </div>
+
+  <!-- Vehicle Search -->
+  <div class="section">
+    <h2><span class="icon">&#128269;</span> Consultar Veículo</h2>
+    <div class="search-box">
+      <input type="text" id="plateInput" placeholder="Digite a placa (ex: TCX0F96)" maxlength="7" onkeydown="if(event.key==='Enter')searchVehicle()">
+      <button onclick="searchVehicle()">Buscar</button>
+    </div>
+    <div id="vehicleResult"></div>
+  </div>
+
+  <!-- Vehicles in Patio -->
+  <div class="section">
+    <h2><span class="icon">&#128663;</span> Veículos em Pátio</h2>
+    <div class="praca-tabs" id="patioTabs">
+      <button class="active" onclick="filterPatio('TODOS')">Todos</button>
+      <button onclick="filterPatio('REC')">REC</button>
+      <button onclick="filterPatio('SSA')">SSA</button>
+      <button onclick="filterPatio('NAT')">NAT</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Praça</th><th>Placa</th><th>Veículo</th><th>Tipo</th><th>Entrada</th><th>Dias em Pátio</th><th>Custo Acum.</th></tr></thead>
+        <tbody id="patioTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Measurement -->
+  <div class="section">
+    <h2><span class="icon">&#128200;</span> Medição Mensal</h2>
+    <div class="month-selector">
+      <select id="mesSelect" onchange="loadMeasurement()"></select>
+      <div class="type-toggle">
+        <button class="active" id="btnAll" onclick="setMeasType('all')">Todos</button>
+        <button id="btnAtiv" onclick="setMeasType('ativacao')">Ativação</button>
+        <button id="btnDesm" onclick="setMeasType('desmobilizacao')">Desmobilização</button>
+      </div>
+    </div>
+    <div class="measurement-total" id="measTotals"></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Praça</th><th>Placa</th><th>Veículo</th><th>Tipo</th><th>Entrada</th><th>Saída</th><th>Diárias</th><th>Carência</th><th>Dias Cobr.</th><th class="text-right">Custódia</th><th class="text-right">Serviço</th><th class="text-right">Total</th></tr></thead>
+        <tbody id="measTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /app-content -->
+
+<script>
+// === LOGIN ===
+const PASS_HASH = '50636ae352a204817d71ae3555afcc6578a1a93fd58cbdd7f615c4142dc41e59';
+async function hashPass(pw) {
+  const enc = new TextEncoder().encode(pw);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function doLogin() {
+  const pw = document.getElementById('loginPassword').value;
+  const h = await hashPass(pw);
+  if (h === PASS_HASH) {
+    sessionStorage.setItem('ff_auth', '1');
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('appContent').classList.remove('locked');
+    loadAll();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+  }
+}
+// Auto-login if session is active
+if (sessionStorage.getItem('ff_auth') === '1') {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('appContent').classList.remove('locked');
+  setTimeout(loadAll, 100);
+}
+
+const SUPABASE_URL = 'https://sqbjxabftqtzdigjhivl.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxYmp4YWJmdHF0emRpZ2poaXZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzg2MjgsImV4cCI6MjA4ODgxNDYyOH0.HjuiYMBq6I2z43qCA7TwdagqFnZ6WgyeqXQHcE3aMsY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const GRACE = 7, DIARIA = 10, ATIV_FEE = 190, DESM_FEE = 88;
+let allVehicles = [], allPricing = [], measType = 'all', patioFilter = 'TODOS';
+
+function parsePraca(notes) {
+  if (!notes) return '?';
+  if (notes.includes('NAT')) return 'NAT';
+  if (notes.includes('REC')) return 'REC';
+  if (notes.includes('SSA')) return 'SSA';
+  return '?';
+}
+function parseType(notes) {
+  if (!notes) return '?';
+  if (notes.toUpperCase().includes('ATIVAÇÃO') || notes.toUpperCase().includes('ATIVACAO')) return 'Ativação';
+  if (notes.toUpperCase().includes('DESMOBILIZAÇÃO') || notes.toUpperCase().includes('DESMOBILIZACAO')) return 'Desmobilização';
+  return '?';
+}
+function fmt(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 0}); }
+function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return dt.toLocaleDateString('pt-BR', {timeZone:'UTC'}); }
+function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000); }
+
+async function loadAll() {
+  const {data: vehicles} = await sb.from('vehicles').select('*').order('estimated_arrival_date', {ascending: false});
+  const {data: pricing} = await sb.from('service_pricing').select('*');
+  allVehicles = vehicles || [];
+  allPricing = pricing || [];
+  renderKPIs();
+  renderCharts();
+  renderPatio();
+  populateMonths();
+  loadMeasurement();
+}
+
+function renderKPIs() {
+  const total = allVehicles.length;
+  const patio = allVehicles.filter(v => v.status === 'patio');
+  const fin = allVehicles.filter(v => v.status === 'finalizado');
+  const now = new Date();
+  const mStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  const mEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0));
+  const thisMonth = allVehicles.filter(v => {
+    const d = new Date(v.estimated_arrival_date);
+    return d >= mStart && d <= mEnd;
+  });
+  const ativ = thisMonth.filter(v => parseType(v.notes) === 'Ativação').length;
+  const desm = thisMonth.filter(v => parseType(v.notes) === 'Desmobilização').length;
+
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-total-sub').textContent = `${allVehicles.filter(v=>v.status!=='archived').length} ativos`;
+  document.getElementById('kpi-patio').textContent = patio.length;
+  document.getElementById('kpi-patio-sub').textContent = `SSA: ${patio.filter(v=>parsePraca(v.notes)==='SSA').length} · REC: ${patio.filter(v=>parsePraca(v.notes)==='REC').length} · NAT: ${patio.filter(v=>parsePraca(v.notes)==='NAT').length}`;
+  document.getElementById('kpi-fin').textContent = fin.length;
+  document.getElementById('kpi-ativ').textContent = ativ;
+  document.getElementById('kpi-desm').textContent = desm;
+
+  // Quick measurement for current month
+  const meas = calcMeasurement(now.getFullYear(), now.getMonth());
+  const totalMeas = meas.reduce((s, m) => s + m.total, 0);
+  document.getElementById('kpi-medicao').textContent = fmt(totalMeas);
+  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  document.getElementById('kpi-medicao-sub').textContent = `${monthNames[now.getMonth()]}/${now.getFullYear()}`;
+}
+
+let chartPraca, chartStatus;
+function renderCharts() {
+  const patio = allVehicles.filter(v => v.status === 'patio');
+  const pracaCounts = {};
+  patio.forEach(v => { const p = parsePraca(v.notes); pracaCounts[p] = (pracaCounts[p]||0) + 1; });
+
+  const statusCounts = {};
+  allVehicles.forEach(v => { statusCounts[v.status] = (statusCounts[v.status]||0) + 1; });
+
+  if (chartPraca) chartPraca.destroy();
+  chartPraca = new Chart(document.getElementById('chartPraca'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(pracaCounts),
+      datasets: [{ data: Object.values(pracaCounts), backgroundColor: ['#3b82f6','#22c55e','#eab308','#ef4444'] }]
+    },
+    options: { plugins: { legend: { labels: { color: '#94a3b8' } } }, responsive: true }
+  });
+
+  const statusColors = { patio: '#f97316', finalizado: '#22c55e', archived: '#a855f7' };
+  const statusLabels = { patio: 'Pátio', finalizado: 'Finalizado', archived: 'Arquivado' };
+  if (chartStatus) chartStatus.destroy();
+  chartStatus = new Chart(document.getElementById('chartStatus'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(statusCounts).map(k => statusLabels[k] || k),
+      datasets: [{ data: Object.values(statusCounts), backgroundColor: Object.keys(statusCounts).map(k => statusColors[k] || '#64748b') }]
+    },
+    options: { plugins: { legend: { labels: { color: '#94a3b8' } } }, responsive: true }
+  });
+}
+
+function renderPatio() {
+  const patio = allVehicles.filter(v => v.status === 'patio');
+  const today = new Date();
+  const tbody = document.getElementById('patioTable');
+  const filtered = patioFilter === 'TODOS' ? patio : patio.filter(v => parsePraca(v.notes) === patioFilter);
+
+  filtered.sort((a,b) => new Date(a.estimated_arrival_date) - new Date(b.estimated_arrival_date));
+
+  tbody.innerHTML = filtered.map(v => {
+    const praca = parsePraca(v.notes);
+    const tipo = parseType(v.notes);
+    const dias = daysBetween(v.estimated_arrival_date, today.toISOString().slice(0,10));
+    const diasCobr = Math.max(0, dias - GRACE);
+    const custo = diasCobr * DIARIA;
+    return `<tr>
+      <td>${praca}</td>
+      <td><strong>${v.plate}</strong></td>
+      <td>${v.brand || ''} ${v.model}</td>
+      <td>${tipo}</td>
+      <td>${fmtDate(v.estimated_arrival_date)}</td>
+      <td>${dias} dias</td>
+      <td class="text-right money">${fmt(custo)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterPatio(p) {
+  patioFilter = p;
+  document.querySelectorAll('#patioTabs button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderPatio();
+}
+
+async function searchVehicle() {
+  const plate = document.getElementById('plateInput').value.trim().toUpperCase();
+  if (!plate) return;
+  const container = document.getElementById('vehicleResult');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  const {data} = await sb.from('vehicles').select('*').ilike('plate', `%${plate}%`).limit(5);
+
+  if (!data || data.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nenhum veículo encontrado com essa placa.</div>';
+    return;
+  }
+
+  container.innerHTML = data.map(v => {
+    const praca = parsePraca(v.notes);
+    const tipo = parseType(v.notes);
+    const entrada = v.estimated_arrival_date;
+    const saida = v.withdrawal_date;
+    const today = new Date().toISOString().slice(0,10);
+    const dias = entrada ? daysBetween(entrada, saida ? saida.slice(0,10) : today) : 0;
+    const diasCobr = Math.max(0, dias - GRACE);
+    const custodia = diasCobr * DIARIA;
+    const fee = tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
+    const statusClass = v.status === 'patio' ? 'status-patio' : v.status === 'finalizado' ? 'status-finalizado' : 'status-archived';
+
+    return `<div class="vehicle-card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><div class="plate-big">${v.plate}</div><div class="model-name">${v.brand || ''} ${v.model}</div></div>
+        <span class="status-badge ${statusClass}">${v.status.toUpperCase()}</span>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><div class="lbl">Praça</div><div class="val">${praca}</div></div>
+        <div class="info-item"><div class="lbl">Tipo</div><div class="val">${tipo}</div></div>
+        <div class="info-item"><div class="lbl">Entrada</div><div class="val">${fmtDate(entrada)}</div></div>
+        <div class="info-item"><div class="lbl">Saída</div><div class="val">${saida ? fmtDate(saida) : 'Em custódia'}</div></div>
+        <div class="info-item"><div class="lbl">Dias Totais</div><div class="val">${dias}</div></div>
+        <div class="info-item"><div class="lbl">Dias Cobrados</div><div class="val">${diasCobr}</div></div>
+        <div class="info-item"><div class="lbl">Custódia</div><div class="val money">${fmt(custodia)}</div></div>
+        <div class="info-item"><div class="lbl">Serviço</div><div class="val money">${fmt(fee)}</div></div>
+        <div class="info-item"><div class="lbl">Total Estimado</div><div class="val money" style="color:var(--blue)">${fmt(custodia + fee)}</div></div>
+        ${v.notes ? `<div class="info-item" style="grid-column:span 2"><div class="lbl">Observações</div><div class="val" style="font-weight:400;font-size:13px">${v.notes}</div></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function populateMonths() {
+  const sel = document.getElementById('mesSelect');
+  const now = new Date();
+  sel.innerHTML = '';
+  const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const opt = document.createElement('option');
+    opt.value = `${d.getFullYear()}-${d.getMonth()}`;
+    opt.textContent = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    sel.appendChild(opt);
+  }
+}
+
+function setMeasType(t) {
+  measType = t;
+  document.querySelectorAll('.type-toggle button').forEach(b => b.classList.remove('active'));
+  if (t === 'all') document.getElementById('btnAll').classList.add('active');
+  else if (t === 'ativacao') document.getElementById('btnAtiv').classList.add('active');
+  else document.getElementById('btnDesm').classList.add('active');
+  loadMeasurement();
+}
+
+function calcMeasurement(year, month) {
+  const mStart = new Date(Date.UTC(year, month, 1));
+  const mEnd = new Date(Date.UTC(year, month + 1, 0));
+  const mStartStr = mStart.toISOString().slice(0,10);
+  const mEndStr = mEnd.toISOString().slice(0,10);
+  const mDays = mEnd.getUTCDate();
+
+  const relevant = allVehicles.filter(v => {
+    if (!v.estimated_arrival_date) return false;
+    const entrada = new Date(v.estimated_arrival_date + 'T00:00:00Z');
+    if (entrada > mEnd) return false;
+    if (v.withdrawal_date) {
+      const saida = new Date(v.withdrawal_date.slice(0,10) + 'T00:00:00Z');
+      if (saida < mStart) return false;
+    }
+    if (v.status === 'archived') return false;
+    return true;
+  });
+
+  return relevant.map(v => {
+    const entrada = new Date(v.estimated_arrival_date + 'T00:00:00Z');
+    const tipo = parseType(v.notes);
+    const praca = parsePraca(v.notes);
+    let saidaReal = null;
+    if (v.withdrawal_date) saidaReal = new Date(v.withdrawal_date.slice(0,10) + 'T00:00:00Z');
+    const saidaCalc = saidaReal && saidaReal <= mEnd ? saidaReal : mEnd;
+    const startCount = entrada > mStart ? entrada : mStart;
+
+    let diarias = Math.floor((saidaCalc - startCount) / 86400000);
+    if (diarias < 0) diarias = 0;
+
+    const graceEnd = new Date(entrada.getTime() + GRACE * 86400000);
+    let graceInMonth = 0;
+    if (graceEnd > mStart) {
+      const gStart = entrada > mStart ? entrada : mStart;
+      const gEnd = graceEnd < saidaCalc ? graceEnd : saidaCalc;
+      graceInMonth = Math.max(0, Math.floor((gEnd - gStart) / 86400000));
+    }
+
+    const diasCobr = Math.max(0, diarias - graceInMonth);
+    const custodia = diasCobr * DIARIA;
+    const enteredThisMonth = entrada >= mStart && entrada <= mEnd;
+    let fee = 0;
+    if (enteredThisMonth) {
+      fee = tipo === 'Ativação' ? ATIV_FEE : tipo === 'Desmobilização' ? DESM_FEE : 0;
+    }
+    const total = custodia + fee;
+    const statusStr = saidaReal && saidaReal <= mEnd ? 'FINALIZADO' : 'PÁTIO';
+
+    return { plate: v.plate, model: `${v.brand||''} ${v.model}`, tipo, praca, entrada: v.estimated_arrival_date, saida: saidaReal && saidaReal <= mEnd ? saidaReal.toISOString().slice(0,10) : null, diarias, graceInMonth, diasCobr, custodia, fee, total, status: statusStr };
+  });
+}
+
+function loadMeasurement() {
+  const sel = document.getElementById('mesSelect').value;
+  const [year, month] = sel.split('-').map(Number);
+  let meas = calcMeasurement(year, month);
+
+  if (measType === 'ativacao') meas = meas.filter(m => m.tipo === 'Ativação');
+  else if (measType === 'desmobilizacao') meas = meas.filter(m => m.tipo === 'Desmobilização');
+
+  meas.sort((a,b) => {
+    const po = {NAT:1,REC:2,SSA:3};
+    if ((po[a.praca]||9) !== (po[b.praca]||9)) return (po[a.praca]||9) - (po[b.praca]||9);
+    return new Date(a.entrada) - new Date(b.entrada);
+  });
+
+  const totalCustodia = meas.reduce((s,m) => s + m.custodia, 0);
+  const totalServico = meas.reduce((s,m) => s + m.fee, 0);
+  const totalGeral = meas.reduce((s,m) => s + m.total, 0);
+  const totalDias = meas.reduce((s,m) => s + m.diasCobr, 0);
+
+  document.getElementById('measTotals').innerHTML = `
+    <div class="mt-item"><div class="mt-label">Veículos</div><div class="mt-value">${meas.length}</div></div>
+    <div class="mt-item"><div class="mt-label">Dias Cobrados</div><div class="mt-value">${totalDias}</div></div>
+    <div class="mt-item"><div class="mt-label">Custódia</div><div class="mt-value">${fmt(totalCustodia)}</div></div>
+    <div class="mt-item"><div class="mt-label">Serviços</div><div class="mt-value">${fmt(totalServico)}</div></div>
+    <div class="mt-item"><div class="mt-label">Total Geral</div><div class="mt-value" style="color:var(--green)">${fmt(totalGeral)}</div></div>
+  `;
+
+  document.getElementById('measTable').innerHTML = meas.map(m => `<tr>
+    <td>${m.praca}</td>
+    <td><strong>${m.plate}</strong></td>
+    <td>${m.model}</td>
+    <td>${m.tipo}</td>
+    <td>${fmtDate(m.entrada)}</td>
+    <td>${m.saida ? fmtDate(m.saida) : 'Em custódia'}</td>
+    <td>${m.diarias}</td>
+    <td>${m.graceInMonth}</td>
+    <td>${m.diasCobr}</td>
+    <td class="text-right money">${fmt(m.custodia)}</td>
+    <td class="text-right money">${fmt(m.fee)}</td>
+    <td class="text-right money" style="font-weight:600">${fmt(m.total)}</td>
+  </tr>`).join('') || '<tr><td colspan="12" class="empty-state">Nenhum veículo neste período</td></tr>';
+}
+
+// Init
+loadAll();
+</script>
+</body>
+</html>
