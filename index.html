@@ -6,6 +6,9 @@
 <title>FleetFlow Dashboard — Stellantis</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root {
   --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
@@ -72,6 +75,10 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 .vehicle-card .info-item { }
 .vehicle-card .info-item .lbl { font-size: 11px; color: var(--text2); text-transform: uppercase; }
 .vehicle-card .info-item .val { font-size: 15px; font-weight: 600; margin-top: 2px; }
+.export-buttons { display: flex; gap: 8px; margin-left: auto; }
+.btn-export { padding: 8px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-excel:hover { background: #166534; border-color: var(--green); }
+.btn-pdf:hover { background: #991b1b; border-color: var(--red); }
 .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .status-patio { background: #422006; color: var(--orange); }
 .status-finalizado { background: #052e16; color: var(--green); }
@@ -199,6 +206,10 @@ tr:hover td { background: rgba(59,130,246,0.05); }
         <button class="active" id="btnAll" onclick="setMeasType('all')">Todos</button>
         <button id="btnAtiv" onclick="setMeasType('ativacao')">Ativação</button>
         <button id="btnDesm" onclick="setMeasType('desmobilizacao')">Desmobilização</button>
+      </div>
+      <div class="export-buttons">
+        <button class="btn-export btn-excel" onclick="exportExcel()">&#128196; Excel</button>
+        <button class="btn-export btn-pdf" onclick="exportPDF()">&#128206; PDF</button>
       </div>
     </div>
     <div class="measurement-total" id="measTotals"></div>
@@ -536,6 +547,138 @@ function loadMeasurement() {
     <td class="text-right money">${fmt(m.fee)}</td>
     <td class="text-right money" style="font-weight:600">${fmt(m.total)}</td>
   </tr>`).join('') || '<tr><td colspan="12" class="empty-state">Nenhum veículo neste período</td></tr>';
+}
+
+// === EXPORT FUNCTIONS ===
+function getMeasData() {
+  const sel = document.getElementById('mesSelect').value;
+  const [year, month] = sel.split('-').map(Number);
+  let meas = calcMeasurement(year, month);
+  if (measType === 'ativacao') meas = meas.filter(m => m.tipo === 'Ativação');
+  else if (measType === 'desmobilizacao') meas = meas.filter(m => m.tipo === 'Desmobilização');
+  meas.sort((a,b) => {
+    const po = {NAT:1,REC:2,SSA:3};
+    if ((po[a.praca]||9) !== (po[b.praca]||9)) return (po[a.praca]||9) - (po[b.praca]||9);
+    return new Date(a.entrada) - new Date(b.entrada);
+  });
+  const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const periodo = `${monthNames[month]} ${year}`;
+  const tipoLabel = measType === 'ativacao' ? 'Ativação' : measType === 'desmobilizacao' ? 'Desmobilização' : 'Todos';
+  return { meas, periodo, tipoLabel };
+}
+
+function exportExcel() {
+  const { meas, periodo, tipoLabel } = getMeasData();
+  if (!meas.length) return alert('Nenhum dado para exportar.');
+
+  const header = ['Praça','Placa','Veículo','Tipo','Entrada','Saída','Diárias','Carência','Dias Cobr.','Custódia (R$)','Serviço (R$)','Total (R$)','Status'];
+  const rows = meas.map(m => [
+    m.praca, m.plate, m.model, m.tipo,
+    m.entrada ? fmtDate(m.entrada) : '',
+    m.saida ? fmtDate(m.saida) : 'Em custódia',
+    m.diarias, m.graceInMonth, m.diasCobr,
+    m.custodia, m.fee, m.total, m.status
+  ]);
+
+  const totalCustodia = meas.reduce((s,m) => s + m.custodia, 0);
+  const totalServico = meas.reduce((s,m) => s + m.fee, 0);
+  const totalGeral = meas.reduce((s,m) => s + m.total, 0);
+  rows.push([]);
+  rows.push(['','','','','','','','','TOTAIS:', totalCustodia, totalServico, totalGeral, '']);
+
+  const wsData = [
+    ['MEDIÇÃO DE SERVIÇOS — FleetFlow · Stellantis'],
+    [`Período: ${periodo} | Tipo: ${tipoLabel} | Veículos: ${meas.length}`],
+    [],
+    header,
+    ...rows
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // Column widths
+  ws['!cols'] = [{wch:8},{wch:10},{wch:18},{wch:16},{wch:12},{wch:12},{wch:8},{wch:9},{wch:10},{wch:13},{wch:12},{wch:12},{wch:12}];
+  // Merge title row
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Medição');
+  XLSX.writeFile(wb, `Medicao_FleetFlow_${periodo.replace(' ','_')}.xlsx`);
+}
+
+function exportPDF() {
+  const { meas, periodo, tipoLabel } = getMeasData();
+  if (!meas.length) return alert('Nenhum dado para exportar.');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Header
+  doc.setFontSize(16);
+  doc.setFont('helvetica','bold');
+  doc.text('MEDIÇÃO DE SERVIÇOS PRESTADOS', 148, 15, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setFont('helvetica','normal');
+  doc.text(`Stellantis · FleetFlow · ${periodo} · ${tipoLabel}`, 148, 22, { align: 'center' });
+
+  // Totals summary
+  const totalCustodia = meas.reduce((s,m) => s + m.custodia, 0);
+  const totalServico = meas.reduce((s,m) => s + m.fee, 0);
+  const totalGeral = meas.reduce((s,m) => s + m.total, 0);
+  const totalDias = meas.reduce((s,m) => s + m.diasCobr, 0);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica','bold');
+  doc.text(`Veículos: ${meas.length}   |   Dias Cobrados: ${totalDias}   |   Custódia: ${fmt(totalCustodia)}   |   Serviços: ${fmt(totalServico)}   |   Total: ${fmt(totalGeral)}`, 148, 30, { align: 'center' });
+
+  // Table
+  const tableData = meas.map(m => [
+    m.praca, m.plate, m.model, m.tipo,
+    m.entrada ? fmtDate(m.entrada) : '',
+    m.saida ? fmtDate(m.saida) : 'Em custódia',
+    m.diarias, m.graceInMonth, m.diasCobr,
+    fmt(m.custodia), fmt(m.fee), fmt(m.total), m.status
+  ]);
+
+  // Totals row
+  tableData.push(['','','','','','','','','TOTAIS:', fmt(totalCustodia), fmt(totalServico), fmt(totalGeral), '']);
+
+  doc.autoTable({
+    startY: 35,
+    head: [['Praça','Placa','Veículo','Tipo','Entrada','Saída','Diárias','Carência','Dias Cobr.','Custódia','Serviço','Total','Status']],
+    body: tableData,
+    styles: { fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [30,41,59], textColor: [241,245,249], fontStyle: 'bold', fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [15,23,42] },
+    bodyStyles: { textColor: [30,41,59] },
+    columnStyles: {
+      0: { cellWidth: 12 }, 1: { cellWidth: 18 }, 2: { cellWidth: 28 }, 3: { cellWidth: 22 },
+      4: { cellWidth: 18 }, 5: { cellWidth: 18 }, 6: { cellWidth: 12, halign: 'center' },
+      7: { cellWidth: 14, halign: 'center' }, 8: { cellWidth: 16, halign: 'center' },
+      9: { cellWidth: 22, halign: 'right' }, 10: { cellWidth: 20, halign: 'right' },
+      11: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }, 12: { cellWidth: 20 }
+    },
+    didParseCell: function(data) {
+      // Bold the totals row
+      if (data.row.index === tableData.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [30,41,59];
+        data.cell.styles.textColor = [241,245,249];
+      }
+    },
+    margin: { left: 10, right: 10 }
+  });
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(150);
+    doc.text(`FleetFlow · Gerado em ${new Date().toLocaleDateString('pt-BR')} · Página ${i}/${pageCount}`, 148, 200, { align: 'center' });
+  }
+
+  doc.save(`Medicao_FleetFlow_${periodo.replace(' ','_')}.pdf`);
 }
 
 // Init
