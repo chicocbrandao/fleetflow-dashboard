@@ -455,7 +455,9 @@ function setMeasType(t) {
 
 function calcMeasurement(year, month) {
   const mStart = new Date(Date.UTC(year, month, 1));
-  const mEnd = new Date(Date.UTC(year, month + 1, 0));
+  const mLastDay = new Date(Date.UTC(year, month + 1, 0));
+  const today = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  const mEnd = today < mLastDay ? today : mLastDay;
   const mStartStr = mStart.toISOString().slice(0,10);
   const mEndStr = mEnd.toISOString().slice(0,10);
   const mDays = mEnd.getUTCDate();
@@ -648,7 +650,7 @@ function exportPDF() {
     body: tableData,
     styles: { fontSize: 7.5, cellPadding: 2 },
     headStyles: { fillColor: [30,41,59], textColor: [241,245,249], fontStyle: 'bold', fontSize: 7.5 },
-    alternateRowStyles: { fillColor: [15,23,42] },
+    alternateRowStyles: { fillColor: [240,240,245] },
     bodyStyles: { textColor: [30,41,59] },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 18 }, 2: { cellWidth: 28 }, 3: { cellWidth: 22 },
