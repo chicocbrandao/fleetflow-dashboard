@@ -269,13 +269,14 @@ function parsePraca(notes) {
 }
 function parseType(notes) {
   if (!notes) return '?';
-  if (notes.toUpperCase().includes('ATIVAÇÃO') || notes.toUpperCase().includes('ATIVACAO')) return 'Ativação';
-  if (notes.toUpperCase().includes('DESMOBILIZAÇÃO') || notes.toUpperCase().includes('DESMOBILIZACAO')) return 'Desmobilização';
+  const up = notes.toUpperCase();
+  if (up.includes('ATIVAÇÃO') || up.includes('ATIVACAO') || up.includes('ENTRADA')) return 'Ativação';
+  if (up.includes('DESMOBILIZAÇÃO') || up.includes('DESMOBILIZACAO') || up.includes('SAÍDA') || up.includes('SAIDA')) return 'Desmobilização';
   return '?';
 }
 function fmt(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 0}); }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return dt.toLocaleDateString('pt-BR', {timeZone:'UTC'}); }
-function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000); }
+function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000) + 1; }
 
 async function loadAll() {
   const {data: vehicles} = await sb.from('vehicles').select('*').order('estimated_arrival_date', {ascending: false});
@@ -364,7 +365,9 @@ function renderPatio() {
     const tipo = parseType(v.notes);
     const dias = daysBetween(v.estimated_arrival_date, today.toISOString().slice(0,10));
     const diasCobr = Math.max(0, dias - GRACE);
-    const custo = diasCobr * DIARIA;
+    const custoDiarias = diasCobr * DIARIA;
+    const fee = tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
+    const custo = custoDiarias + fee;
     return `<tr>
       <td>${praca}</td>
       <td><strong>${v.plate}</strong></td>
@@ -483,7 +486,7 @@ function calcMeasurement(year, month) {
     const saidaCalc = saidaReal && saidaReal <= mEnd ? saidaReal : mEnd;
     const startCount = entrada > mStart ? entrada : mStart;
 
-    let diarias = Math.floor((saidaCalc - startCount) / 86400000);
+    let diarias = Math.floor((saidaCalc - startCount) / 86400000) + 1;
     if (diarias < 0) diarias = 0;
 
     const graceEnd = new Date(entrada.getTime() + GRACE * 86400000);
