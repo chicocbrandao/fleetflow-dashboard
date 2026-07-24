@@ -270,8 +270,18 @@ function parsePraca(notes) {
 function parseType(notes) {
   if (!notes) return '?';
   const up = notes.toUpperCase();
-  if (up.includes('ATIVAÇÃO') || up.includes('ATIVACAO') || up.includes('ENTRADA')) return 'Ativação';
-  if (up.includes('DESMOBILIZAÇÃO') || up.includes('DESMOBILIZACAO') || up.includes('SAÍDA') || up.includes('SAIDA')) return 'Desmobilização';
+  // Tipo do carro vem das palavras ATIVACAO/DESMOBILIZACAO nas notes.
+  // ENTRADA/SAIDA são o MOVIMENTO (eixo independente) — só servem de fallback
+  // pra registros legados que não têm o tipo explícito.
+  // Nas notes do PWA o 1º segmento é a ENTRADA, que define o tipo cobrado —
+  // por isso vale a palavra de tipo que aparece PRIMEIRO na string.
+  const iA = Math.min(...['ATIVAÇÃO','ATIVACAO'].map(t => up.indexOf(t)).filter(i => i >= 0).concat(Infinity));
+  const iD = Math.min(...['DESMOBILIZAÇÃO','DESMOBILIZACAO','DESMOB'].map(t => up.indexOf(t)).filter(i => i >= 0).concat(Infinity));
+  if (iA < iD) return 'Ativação';
+  if (iD < iA) return 'Desmobilização';
+  // Fallback legado (notes antigas sem tipo explícito)
+  if (up.includes('ENTRADA')) return 'Ativação';
+  if (up.includes('SAÍDA') || up.includes('SAIDA')) return 'Desmobilização';
   return '?';
 }
 function fmt(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 0}); }
