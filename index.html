@@ -170,6 +170,29 @@ tr:hover td { background: rgba(59,130,246,0.05); }
     </div>
   </div>
 
+  <!-- Unidas × Refran (SSA) -->
+  <div class="section">
+    <h2><span class="icon">&#128664;</span> Unidas &times; Refran — Salvador</h2>
+    <div class="kpi-grid" id="urKpis" style="margin-bottom:16px"></div>
+    <div class="charts-row" style="margin-bottom:16px">
+      <div class="chart-box">
+        <h3>Ocupação do pátio SSA (30 dias) &middot; linha = 50 vagas Refran</h3>
+        <canvas id="chartOcupacao"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Simulador &middot; renegociação Refran</h3>
+        <div id="simulador" style="font-size:13px">
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+            <label>Vagas contratadas<br><input type="number" id="simVagas" value="50" min="0" style="width:90px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text)" oninput="renderSim()"></label>
+            <label>Mensalidade (R$)<br><input type="number" id="simBase" value="3500" min="0" step="100" style="width:110px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text)" oninput="renderSim()"></label>
+            <label>Excedente (R$/dia)<br><input type="number" id="simRate" value="4" min="0" step="0.5" style="width:80px;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text)" oninput="renderSim()"></label>
+          </div>
+          <div id="simResult"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Vehicle Search -->
   <div class="section">
     <h2><span class="icon">&#128269;</span> Consultar Veículo</h2>
@@ -258,7 +281,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const GRACE = 7, DIARIA = 10, ATIV_FEE = 190, DESM_FEE = 88;
-let allVehicles = [], allPricing = [], measType = 'all', patioFilter = 'TODOS';
+// Contrato Unidas (guarda SSA): sem taxa, sem carência, R$6/dia — medição por ocupação agregada
+const UNIDAS_ID = 'fea28c45-8ca5-4550-98ad-3f9e78b7a120';
+const UNIDAS_DIARIA = 6;
+let allVehicles = [], allPricing = [], allOcc = [], allContracts = [], measType = 'all', patioFilter = 'TODOS';
 
 function parsePraca(notes) {
   if (!notes) return '?';
@@ -270,6 +296,8 @@ function parsePraca(notes) {
 function parseType(notes) {
   if (!notes) return '?';
   const up = notes.toUpperCase();
+  // Guarda Unidas não tem tipo ativação/desmob
+  if (up.includes('GUARDA')) return 'Guarda Unidas';
   // Tipo do carro vem das palavras ATIVACAO/DESMOBILIZACAO nas notes.
   // ENTRADA/SAIDA são o MOVIMENTO (eixo independente) — só servem de fallback
   // pra registros legados que não têm o tipo explícito.
@@ -289,12 +317,20 @@ function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return dt.toLo
 function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000) + 1; }
 
 async function loadAll() {
-  const {data: vehicles} = await sb.from('vehicles').select('*').order('estimated_arrival_date', {ascending: false});
-  const {data: pricing} = await sb.from('service_pricing').select('*');
+  const cutoff = new Date(Date.now() - 70 * 86400000).toISOString().slice(0,10);
+  const [{data: vehicles}, {data: pricing}, {data: occ}, {data: contracts}] = await Promise.all([
+    sb.from('vehicles').select('*').order('estimated_arrival_date', {ascending: false}),
+    sb.from('service_pricing').select('*'),
+    sb.from('daily_occupancy').select('*').gte('occ_date', cutoff).order('occ_date'),
+    sb.from('supply_contracts').select('*'),
+  ]);
   allVehicles = vehicles || [];
   allPricing = pricing || [];
+  allOcc = occ || [];
+  allContracts = contracts || [];
   renderKPIs();
   renderCharts();
+  renderUnidasRefran();
   renderPatio();
   populateMonths();
   loadMeasurement();
@@ -362,6 +398,98 @@ function renderCharts() {
   });
 }
 
+// ═══ Unidas × Refran (SSA) ═══
+let chartOcupacao;
+function renderUnidasRefran() {
+  const cUni = allContracts.find(c => c.code === 'unidas_ssa') || { included_units: 50, base_monthly: 9000, excess_rate: 6, starts_on: '2026-07-27' };
+  const cRef = allContracts.find(c => c.code === 'refran_ssa') || { included_units: 50, base_monthly: 3500, excess_rate: 4, starts_on: '2026-07-27' };
+  const today = new Date(Date.now() - 3*3600*1000).toISOString().slice(0,10); // America/Bahia
+  const mStart = today.slice(0,7) + '-01';
+
+  const ssa = allOcc.filter(o => o.yard === 'SSA');
+  const byDate = {};
+  for (const o of ssa) {
+    if (!byDate[o.occ_date]) byDate[o.occ_date] = { total: 0, unidas: 0, stellantis: 0 };
+    byDate[o.occ_date].total += o.car_count;
+    if (o.client_id === UNIDAS_ID) byDate[o.occ_date].unidas += o.car_count;
+    else byDate[o.occ_date].stellantis += o.car_count;
+  }
+  const dates = Object.keys(byDate).sort();
+
+  // Fatura Unidas (mês corrente, a partir do início do contrato)
+  const uniDays = dates.filter(d => d >= mStart && d >= cUni.starts_on);
+  const uniExcess = uniDays.reduce((s,d) => s + Math.max(0, byDate[d].unidas - cUni.included_units), 0);
+  const faturaUnidas = Number(cUni.base_monthly) + uniExcess * Number(cUni.excess_rate);
+
+  // Repasse Refran (mês corrente, total SSA)
+  const refDays = dates.filter(d => d >= mStart && d >= cRef.starts_on);
+  const refExcess = refDays.reduce((s,d) => s + Math.max(0, byDate[d].total - cRef.included_units), 0);
+  const repasseRefran = Number(cRef.base_monthly) + refExcess * Number(cRef.excess_rate);
+
+  const hoje = byDate[today] || byDate[dates[dates.length-1]] || { total: 0, unidas: 0, stellantis: 0 };
+  const contratoAtivo = today >= cUni.starts_on;
+
+  document.getElementById('urKpis').innerHTML = `
+    <div class="kpi green"><div class="label">Carros Unidas hoje</div><div class="value">${hoje.unidas}</div><div class="sub">mínimo contratado: ${cUni.included_units}</div></div>
+    <div class="kpi orange"><div class="label">Ocupação total SSA</div><div class="value">${hoje.total}</div><div class="sub">${cRef.included_units} vagas Refran ${hoje.total > cRef.included_units ? '· <b>+' + (hoje.total - cRef.included_units) + ' excedentes</b>' : ''}</div></div>
+    <div class="kpi blue"><div class="label">Fatura Unidas (mês)</div><div class="value money">${contratoAtivo ? fmt(faturaUnidas) : '—'}</div><div class="sub">${contratoAtivo ? uniExcess + ' carro-dias excedentes' : 'contrato inicia ' + fmtDate(cUni.starts_on)}</div></div>
+    <div class="kpi red"><div class="label">Repasse Refran (mês)</div><div class="value money">${contratoAtivo ? fmt(repasseRefran) : '—'}</div><div class="sub">${contratoAtivo ? refExcess + ' carro-dias excedentes' : 'contrato inicia ' + fmtDate(cRef.starts_on)}</div></div>
+    <div class="kpi purple"><div class="label">Margem da guarda</div><div class="value money">${contratoAtivo ? fmt(faturaUnidas - repasseRefran) : '—'}</div><div class="sub">fatura Unidas − custo Refran</div></div>
+  `;
+
+  // Gráfico: últimos 30 dias, stacked Stellantis + Unidas + linha das vagas
+  const last30 = dates.slice(-30);
+  const ctx = document.getElementById('chartOcupacao');
+  if (chartOcupacao) chartOcupacao.destroy();
+  chartOcupacao = new Chart(ctx, {
+    data: {
+      labels: last30.map(d => d.slice(8,10) + '/' + d.slice(5,7)),
+      datasets: [
+        { type: 'bar', label: 'Stellantis', data: last30.map(d => byDate[d].stellantis), backgroundColor: '#3b82f6', stack: 's' },
+        { type: 'bar', label: 'Unidas', data: last30.map(d => byDate[d].unidas), backgroundColor: '#22c55e', stack: 's' },
+        { type: 'line', label: `Vagas Refran (${cRef.included_units})`, data: last30.map(() => cRef.included_units), borderColor: '#94a3b8', borderDash: [6,4], borderWidth: 2, pointRadius: 0, fill: false },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+    },
+  });
+
+  window.__urData = { cRef, byDate, dates, hoje };
+  renderSim();
+}
+
+function renderSim() {
+  if (!window.__urData) return;
+  const { byDate, dates, hoje } = window.__urData;
+  const vagas = Number(document.getElementById('simVagas').value) || 0;
+  const base = Number(document.getElementById('simBase').value) || 0;
+  const rate = Number(document.getElementById('simRate').value) || 0;
+  const stellHoje = hoje.stellantis;
+
+  // Cenários de carros Unidas no pátio (média/dia)
+  const cenarios = [30, 50, 70, 90];
+  const rows = cenarios.map(u => {
+    const total = stellHoje + u;
+    const exc = Math.max(0, total - vagas);
+    const custoMes = base + exc * rate * 30;
+    const receita = 9000 + Math.max(0, u - 50) * 6 * 30;
+    const margem = receita - custoMes;
+    return `<tr><td>${u}</td><td class="text-right">${total}</td><td class="text-right">${exc > 0 ? '+' + exc + '/dia' : '—'}</td><td class="text-right money">${fmt(custoMes)}</td><td class="text-right money">${fmt(receita)}</td><td class="text-right money" style="font-weight:600;color:${margem >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(margem)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('simResult').innerHTML = `
+    <p style="color:var(--text2);margin-bottom:8px">Com <b>${stellHoje} carros Stellantis</b> no pátio hoje e a proposta acima:</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Unidas/dia</th><th class="text-right">Total pátio</th><th class="text-right">Excedente</th><th class="text-right">Custo Refran/mês</th><th class="text-right">Receita Unidas/mês</th><th class="text-right">Margem guarda</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p style="color:var(--text2);margin-top:8px;font-size:12px">Receita Unidas = R$ 9.000 + excedentes acima de 50 × R$ 6 × 30d. Custo = mensalidade + excedente × R$/dia × 30d. Margem não inclui a receita Stellantis (diárias/taxas), que também usa as vagas.</p>
+  `;
+}
+
 function renderPatio() {
   const patio = allVehicles.filter(v => v.status === 'patio');
   const today = new Date();
@@ -373,10 +501,12 @@ function renderPatio() {
   tbody.innerHTML = filtered.map(v => {
     const praca = parsePraca(v.notes);
     const tipo = parseType(v.notes);
+    const isUnidas = v.client_id === UNIDAS_ID;
     const dias = daysBetween(v.estimated_arrival_date, today.toISOString().slice(0,10));
-    const diasCobr = Math.max(0, dias - GRACE);
-    const custoDiarias = diasCobr * DIARIA;
-    const fee = tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
+    // Unidas: R$6/dia desde o dia 1, sem carência e sem taxa
+    const diasCobr = isUnidas ? dias : Math.max(0, dias - GRACE);
+    const custoDiarias = diasCobr * (isUnidas ? UNIDAS_DIARIA : DIARIA);
+    const fee = isUnidas ? 0 : tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
     const custo = custoDiarias + fee;
     return `<tr>
       <td>${praca}</td>
@@ -413,13 +543,15 @@ async function searchVehicle() {
   container.innerHTML = data.map(v => {
     const praca = parsePraca(v.notes);
     const tipo = parseType(v.notes);
+    const isUnidas = v.client_id === UNIDAS_ID;
     const entrada = v.estimated_arrival_date;
     const saida = v.withdrawal_date;
     const today = new Date().toISOString().slice(0,10);
     const dias = entrada ? daysBetween(entrada, saida ? saida.slice(0,10) : today) : 0;
-    const diasCobr = Math.max(0, dias - GRACE);
-    const custodia = diasCobr * DIARIA;
-    const fee = tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
+    // Unidas: R$6/dia desde o dia 1, sem carência e sem taxa
+    const diasCobr = isUnidas ? dias : Math.max(0, dias - GRACE);
+    const custodia = diasCobr * (isUnidas ? UNIDAS_DIARIA : DIARIA);
+    const fee = isUnidas ? 0 : tipo === 'Ativação' ? ATIV_FEE : (tipo === 'Desmobilização' ? DESM_FEE : 0);
     const statusClass = v.status === 'patio' ? 'status-patio' : v.status === 'finalizado' ? 'status-finalizado' : 'status-archived';
 
     return `<div class="vehicle-card" style="margin-bottom:12px">
@@ -476,6 +608,8 @@ function calcMeasurement(year, month) {
   const mDays = mEnd.getUTCDate();
 
   const relevant = allVehicles.filter(v => {
+    // Medição mensal = só Stellantis. Unidas tem medição própria (por ocupação, seção Unidas × Refran)
+    if (v.client_id === UNIDAS_ID) return false;
     if (!v.estimated_arrival_date) return false;
     const entrada = new Date(v.estimated_arrival_date + 'T00:00:00Z');
     if (entrada > mEnd) return false;
