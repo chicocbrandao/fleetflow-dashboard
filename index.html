@@ -426,7 +426,14 @@ function renderUnidasRefran() {
   const refExcess = refDays.reduce((s,d) => s + Math.max(0, byDate[d].total - cRef.included_units), 0);
   const repasseRefran = Number(cRef.base_monthly) + refExcess * Number(cRef.excess_rate);
 
-  const hoje = byDate[today] || byDate[dates[dates.length-1]] || { total: 0, unidas: 0, stellantis: 0 };
+  // KPIs de "hoje" contam os veículos AO VIVO — o snapshot só atualiza às 7h
+  // e não enxerga lançamentos feitos durante o dia (nem retroativos).
+  const liveSSA = allVehicles.filter(v => v.status === 'patio' && ((v.yard || parsePraca(v.notes)) === 'SSA'));
+  const hoje = {
+    unidas: liveSSA.filter(v => v.client_id === UNIDAS_ID).length,
+    stellantis: liveSSA.filter(v => v.client_id !== UNIDAS_ID).length,
+    total: liveSSA.length,
+  };
   const contratoAtivo = today >= cUni.starts_on;
 
   document.getElementById('urKpis').innerHTML = `
