@@ -121,6 +121,45 @@ tr:hover td { background: rgba(59,130,246,0.05); }
 .empty-state { text-align: center; padding: 32px; color: var(--text2); }
 .money { font-variant-numeric: tabular-nums; }
 .text-right { text-align: right; }
+
+/* === Assistente IA === */
+.ai-section { border-color: #3b5f8f; }
+.chat-log { max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; padding-right: 4px; }
+.chat-log:empty { display: none; }
+.chat-hint { color: var(--text2); font-size: 13px; margin-bottom: 12px; }
+.msg { display: flex; }
+.msg.user { justify-content: flex-end; }
+.msg .bubble { border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.55; }
+.msg.user .bubble { max-width: 85%; background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.msg.ai .bubble { width: 100%; background: var(--bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg.error .bubble { border-color: var(--red); color: #fca5a5; }
+.bubble p { margin: 0 0 8px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble ul, .bubble ol { margin: 4px 0 8px 20px; }
+.bubble li { margin-bottom: 3px; }
+.bubble code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.bubble h3 { font-size: 14px; margin: 10px 0 6px; }
+.bubble table { margin: 10px 0; font-size: 12px; }
+.chat-input { display: flex; gap: 10px; align-items: flex-end; }
+.chat-input textarea { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px; font-family: inherit; line-height: 1.4; resize: none; max-height: 160px; }
+.chat-input textarea:focus { outline: none; border-color: var(--blue); }
+.chat-input button { background: var(--blue); border: none; color: #fff; padding: 12px 22px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.chat-input button:disabled { opacity: 0.45; cursor: default; }
+.chat-sugg { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chat-sugg button { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 7px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
+.chat-sugg button:hover { border-color: var(--blue); color: var(--text); }
+.report-box { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.report-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface2); flex-wrap: wrap; }
+.report-head .rt { font-size: 13px; font-weight: 600; }
+.report-head .rc { font-size: 11px; color: var(--text2); flex: 1; }
+.report-head button { padding: 6px 12px; font-size: 12px; }
+.report-box .table-scroll { border: none; border-radius: 0; max-height: 340px; }
+.chat-chart { margin-top: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.chat-chart canvas { max-height: 260px; }
+.dots span { animation: blink 1.2s infinite; }
+.dots span:nth-child(2) { animation-delay: .2s; }
+.dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -156,6 +195,24 @@ tr:hover td { background: rgba(59,130,246,0.05); }
     <div class="kpi yellow"><div class="label">Ativações</div><div class="value" id="kpi-ativ">-</div><div class="sub">No mês corrente</div></div>
     <div class="kpi red"><div class="label">Desmobilizações</div><div class="value" id="kpi-desm">-</div><div class="sub">No mês corrente</div></div>
     <div class="kpi purple"><div class="label">Medição Mês</div><div class="value money" id="kpi-medicao">-</div><div class="sub" id="kpi-medicao-sub"></div></div>
+  </div>
+
+  <!-- Assistente IA -->
+  <div class="section ai-section">
+    <h2><span class="icon">&#10024;</span> Assistente IA</h2>
+    <div class="chat-hint">Pergunte qualquer coisa sobre a operação — veículos, cobranças, medição, ocupação — ou peça um relatório pronto pra baixar.</div>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="chat-input">
+      <textarea id="chatInput" rows="1" placeholder="Ex: quanto a Stellantis deve em agosto por praça?" onkeydown="chatKey(event)" oninput="autoGrow(this)"></textarea>
+      <button id="chatSend" onclick="askAI()">Enviar</button>
+    </div>
+    <div class="chat-sugg" id="chatSugg">
+      <button onclick="quickAsk(this)">Medição de agosto por praça</button>
+      <button onclick="quickAsk(this)">Carros parados há mais de 30 dias</button>
+      <button onclick="quickAsk(this)">Faturamento mês a mês em 2026, com gráfico</button>
+      <button onclick="quickAsk(this)">Margem da guarda Unidas × Refran neste mês</button>
+      <button onclick="quickAsk(this)">Vistorias Vexsoft sem lançamento no sistema</button>
+    </div>
   </div>
 
   <!-- Charts -->
@@ -260,6 +317,8 @@ async function doLogin() {
   const h = await hashPass(pw);
   if (h === PASS_HASH) {
     sessionStorage.setItem('ff_auth', '1');
+    // Guardada só na sessão do navegador: é o que autentica as chamadas ao /api/ask
+    sessionStorage.setItem('ff_pw', pw);
     document.getElementById('loginOverlay').classList.add('hidden');
     document.getElementById('appContent').classList.remove('locked');
     loadAll();
@@ -270,7 +329,7 @@ async function doLogin() {
   }
 }
 // Auto-login if session is active
-if (sessionStorage.getItem('ff_auth') === '1') {
+if (sessionStorage.getItem('ff_auth') === '1' && sessionStorage.getItem('ff_pw')) {
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('appContent').classList.remove('locked');
   setTimeout(loadAll, 100);
@@ -835,6 +894,220 @@ function exportPDF() {
   }
 
   doc.save(`Medicao_FleetFlow_${periodo.replace(' ','_')}.pdf`);
+}
+
+// ═══════════════════════ ASSISTENTE IA ═══════════════════════
+// O box de chat fala com /api/ask no patio-pwa (Vercel), que é quem guarda a
+// chave da Anthropic e o service role do Supabase. O dash nunca vê nenhuma das duas.
+const ASK_API = 'https://app.fleetflow.digital/api/ask';
+const CHART_COLORS = ['#3b82f6','#22c55e','#eab308','#ef4444','#a855f7','#f97316','#14b8a6'];
+let chatHistory = [];   // conversa enviada ao backend
+let chatReports = [];   // relatórios baixáveis
+let chatBusy = false;
+
+function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
+function chatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAI(); } }
+function quickAsk(btn) { document.getElementById('chatInput').value = btn.textContent; askAI(); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Markdown enxuto: negrito, código, títulos, listas e tabelas em pipe.
+function mdToHtml(md) {
+  const lines = String(md || '').split('\n');
+  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const isRow = (l) => /^\s*\|.*\|\s*$/.test(l || '');
+  let html = '', i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isRow(line) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1] || '')) {
+      const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const head = cells(line); i += 2; const body = [];
+      while (i < lines.length && isRow(lines[i])) { body.push(cells(lines[i])); i++; }
+      html += '<div class="table-scroll"><table><thead><tr>' + head.map(h => '<th>' + inline(h) + '</th>').join('')
+        + '</tr></thead><tbody>' + body.map(r => '<tr>' + r.map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('')
+        + '</tbody></table></div>';
+      continue;
+    }
+    if (/^#{1,4}\s+/.test(line)) { html += '<h3>' + inline(line.replace(/^#{1,4}\s+/, '')) + '</h3>'; i++; continue; }
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++; }
+      html += '<ul>' + items.map(t => '<li>' + inline(t) + '</li>').join('') + '</ul>'; continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*\d+\.\s+/, '')); i++; }
+      html += '<ol>' + items.map(t => '<li>' + inline(t) + '</li>').join('') + '</ol>'; continue;
+    }
+    const buf = [];
+    while (i < lines.length && lines[i].trim() !== '' && !/^\s*[-*]\s+/.test(lines[i]) && !/^#{1,4}\s+/.test(lines[i]) && !isRow(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) { buf.push(lines[i]); i++; }
+    if (buf.length) html += '<p>' + inline(buf.join('\n')).replace(/\n/g, '<br>') + '</p>'; else i++;
+  }
+  return html;
+}
+
+function chatAppend(html, cls) {
+  const log = document.getElementById('chatLog');
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.innerHTML = '<div class="bubble">' + html + '</div>';
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+function cellFmt(v) {
+  if (v === null || v === undefined) return '<span style="color:var(--text2)">—</span>';
+  if (typeof v === 'number') return v.toLocaleString('pt-BR', Number.isInteger(v) ? {} : {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (typeof v === 'object') return esc(JSON.stringify(v));
+  const s = String(v);
+  if (/^-?\d+\.\d+$/.test(s)) return Number(s).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return esc(s);
+}
+
+function renderReport(rep, idx) {
+  const cols = rep.columns, preview = rep.rows.slice(0, 50);
+  return '<div class="report-box"><div class="report-head">'
+    + '<span class="rt">' + esc(rep.title || 'Relatório') + '</span>'
+    + '<span class="rc">' + rep.rows.length + ' linha(s)' + (rep.rows.length > preview.length ? ' · prévia das 50 primeiras' : '') + '</span>'
+    + '<button class="btn-export btn-excel" onclick="chatExportExcel(' + idx + ')">&#128196; Excel</button>'
+    + '<button class="btn-export btn-pdf" onclick="chatExportPDF(' + idx + ')">&#128206; PDF</button>'
+    + '</div><div class="table-scroll"><table><thead><tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>'
+    + preview.map(r => '<tr>' + cols.map(c => '<td>' + cellFmt(r[c]) + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div></div>';
+}
+
+function renderChart(spec, canvasId) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx || !spec) return;
+  const type = spec.type || 'bar';
+  const ds = (spec.series || []).map((s, i) => ({
+    label: s.label,
+    data: s.data,
+    backgroundColor: type === 'doughnut' ? CHART_COLORS : CHART_COLORS[i % CHART_COLORS.length],
+    borderColor: CHART_COLORS[i % CHART_COLORS.length],
+    borderWidth: type === 'line' ? 2 : 0,
+    fill: false, tension: 0.25, pointRadius: 2,
+  }));
+  new Chart(ctx, {
+    type,
+    data: { labels: spec.labels || [], datasets: ds },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } } },
+      scales: type === 'doughnut' ? {} : { y: { beginAtZero: true }, x: { grid: { display: false } } },
+    },
+  });
+}
+
+async function askAI() {
+  if (chatBusy) return;
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  const pw = sessionStorage.getItem('ff_pw');
+  if (!pw) { chatAppend('Sessão expirada — recarregue a página e entre de novo.', 'ai error'); return; }
+
+  chatBusy = true;
+  document.getElementById('chatSend').disabled = true;
+  input.value = ''; autoGrow(input);
+  document.getElementById('chatSugg').style.display = 'none';
+  chatAppend(esc(q).replace(/\n/g, '<br>'), 'user');
+  chatHistory.push({ role: 'user', content: q });
+  const thinking = chatAppend('<span class="dots">Consultando o banco<span>.</span><span>.</span><span>.</span></span>', 'ai');
+
+  try {
+    const res = await fetch(ASK_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-ff-key': pw },
+      body: JSON.stringify({ messages: chatHistory }),
+    });
+    const data = await res.json().catch(() => ({ error: 'Resposta inválida do servidor.' }));
+    thinking.remove();
+    if (!res.ok) { chatHistory.pop(); chatAppend(esc(data.error || ('Erro ' + res.status)), 'ai error'); return; }
+
+    let html = mdToHtml(data.answer);
+    let chartId = null;
+    if (data.report && data.report.rows && data.report.rows.length) {
+      chatReports.push(data.report);
+      html += renderReport(data.report, chatReports.length - 1);
+    }
+    if (data.chart) {
+      chartId = 'chatChart' + Date.now();
+      html += '<div class="chat-chart"><h3>' + esc(data.chart.title || '') + '</h3><canvas id="' + chartId + '"></canvas></div>';
+    }
+    chatAppend(html, 'ai');
+    if (chartId) renderChart(data.chart, chartId);
+    chatHistory.push({ role: 'assistant', content: data.answer || '' });
+  } catch (e) {
+    thinking.remove();
+    chatHistory.pop();
+    chatAppend('Não consegui falar com o assistente: ' + esc(e.message), 'ai error');
+  } finally {
+    chatBusy = false;
+    document.getElementById('chatSend').disabled = false;
+  }
+}
+
+function slugName(s) {
+  return ('FleetFlow_' + String(s || 'relatorio')).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/_+$/, '').slice(0, 60);
+}
+function xlsVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  return v;
+}
+function pdfVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  const s = String(v);
+  if (/^-?\d+\.\d+$/.test(s)) return Number(s).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return s;
+}
+
+function chatExportExcel(idx) {
+  const rep = chatReports[idx];
+  if (!rep) return;
+  const ws = XLSX.utils.aoa_to_sheet([
+    [rep.title || 'Relatório'],
+    ['FleetFlow · gerado em ' + new Date().toLocaleString('pt-BR') + ' · ' + rep.rows.length + ' registro(s)'],
+    [],
+    rep.columns,
+    ...rep.rows.map(r => rep.columns.map(c => xlsVal(r[c]))),
+  ]);
+  ws['!cols'] = rep.columns.map(c => ({ wch: Math.max(12, Math.min(32, String(c).length + 6)) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+  XLSX.writeFile(wb, slugName(rep.title) + '.xlsx');
+}
+
+function chatExportPDF(idx) {
+  const rep = chatReports[idx];
+  if (!rep) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: rep.columns.length > 6 ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+  const w = doc.internal.pageSize.getWidth();
+  doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text(rep.title || 'Relatório', w / 2, 15, { align: 'center' });
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text('FleetFlow · ' + rep.rows.length + ' registro(s) · gerado em ' + new Date().toLocaleDateString('pt-BR'), w / 2, 21, { align: 'center' });
+  doc.autoTable({
+    startY: 27,
+    head: [rep.columns],
+    body: rep.rows.map(r => rep.columns.map(c => pdfVal(r[c]))),
+    styles: { fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [30, 41, 59], textColor: [241, 245, 249], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [240, 240, 245] },
+    bodyStyles: { textColor: [30, 41, 59] },
+    margin: { left: 8, right: 8 },
+  });
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p); doc.setFontSize(8); doc.setTextColor(150);
+    doc.text('Página ' + p + '/' + pages, w / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+  }
+  doc.save(slugName(rep.title) + '.pdf');
 }
 
 // Init
