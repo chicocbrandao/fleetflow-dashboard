@@ -6,11 +6,11 @@ Situação em **14/08/2026**. Ordenado por gravidade dentro de cada bloco.
 
 ## Riscos de infraestrutura
 
-### 🔴 O código do PWA existe em um lugar só
+### 🟢 O código do PWA existe em um lugar só — resolvido em 14/08
 
-`~/Desktop/FLeet Flow/patio-pwa/` **não é um repositório Git**. Não há histórico, não há branch, não há backup fora do build da Vercel. Um acidente com o Mac ou com a sincronização do iCloud leva junto o app que sustenta a operação.
+`~/Desktop/FLeet Flow/patio-pwa/` não era repositório Git: não havia histórico nem backup fora do build da Vercel.
 
-**Correção:** `git init` + repositório privado no GitHub. É o item de maior retorno desta lista.
+Versionado em 14/08/2026 (commit inicial `b6c2aa0`, 58 arquivos). O `.gitignore` que já existia cobre `node_modules`, `.next`, `.vercel` e `.env*.local` — confirmado que nenhum segredo entrou; o único JWT versionado é a chave anônima, que já é pública. **Falta criar o repositório remoto — privado — e dar o primeiro push.**
 
 ### 🟡 Segredos em texto claro na pasta do Desktop
 
@@ -26,9 +26,23 @@ Os tokens de acesso dos portais Unidas e Refran e o par de chaves VAPID do push 
 
 ### 🔴 Quatro tabelas são legíveis sem login
 
-`vehicles` (com placa, chassi e renavam), `daily_occupancy`, `supply_contracts` (com os valores dos contratos) e `vexsoft_ingest` têm policy de SELECT para `anon`. Como a chave anônima está publicada no HTML do dashboard e dos portais, **qualquer pessoa com a URL consegue ler essas tabelas**.
+`vehicles` (com placa, chassi e renavam), `daily_occupancy`, `supply_contracts` e `vexsoft_ingest` têm policy de SELECT para `anon`. Como a chave anônima está publicada no HTML do dashboard e dos portais, **qualquer pessoa com a URL consegue ler essas tabelas**.
 
-Isso é o que permite o dashboard funcionar como HTML estático. Fechar exige mover a leitura para uma Edge Function com token — o mesmo padrão já usado nos portais.
+O item de maior risco comercial da lista não é a placa: é `supply_contracts`, que expõe os termos dos dois lados do negócio em Salvador. Se a Refran vir o que a Unidas paga — ou o contrário — isso é problema de negociação, não de compliance.
+
+Isso é o que permite o dashboard funcionar como HTML estático, então fechar exige mudar de onde ele lê.
+
+**Plano de migração** (sem janela de indisponibilidade):
+
+1. Criar `/api/data` no PWA — mesma casa do `/api/ask`, mesma autenticação por header `x-ff-key`, mesmo `service_role` que já está configurado. Devolve os quatro conjuntos que o `loadAll()` consome hoje: veículos, ocupação diária, contratos e preços. Nenhuma variável de ambiente nova.
+2. Apontar o `loadAll()` do dashboard para essa rota, **mantendo a leitura direta como fallback** enquanto durar a transição.
+3. Confirmar que o painel carrega igual, com os mesmos números.
+4. Só então remover as policies `anon`: `Dashboard read access` em `vehicles`, `anon read occupancy`, `anon read contracts` e `anon read vexsoft_ingest`.
+5. Remover o fallback.
+
+Os portais Unidas e Refran **não são afetados**: eles usam a chave anônima apenas como cabeçalho de gateway das Edge Functions (`verify_jwt`), não leem tabela direto.
+
+Uma observação que aparece nesse levantamento: o dashboard já lê `service_pricing` sem ter policy para `anon` — a consulta volta vazia e ninguém percebe, porque os preços estão como constantes no JavaScript. Vale corrigir junto, passando a usar a tabela de verdade.
 
 ### 🟢 Funções `SECURITY DEFINER` expostas — corrigido em 14/08
 
@@ -56,11 +70,13 @@ O Supabase Auth tem a checagem contra o HaveIBeenPwned desabilitada. Ligar em Au
 
 ## Integridade de dados
 
-### 🔴 Não há UNIQUE que impeça diária duplicada
+### 🟢 Não havia UNIQUE impedindo cobrança duplicada — resolvido em 14/08
 
-`vehicle_service_charges` não tem constraint de `(vehicle_id, service_key, charge_date)`. A idempotência depende inteiramente do `NOT EXISTS` dentro de `launch_daily_charges()`. Qualquer inserção feita fora dessa função pode duplicar cobrança sem que o banco reclame.
+A idempotência dependia inteiramente do `NOT EXISTS` dentro de `launch_daily_charges()`, e qualquer inserção fora dela podia duplicar cobrança sem o banco reclamar. **E duplicou:** três linhas ativas, incluindo uma desmobilização de R$ 88 cobrada duas vezes (ver histórico).
 
-**Correção:** criar índice único parcial para `service_key = 'diaria'`.
+Índice `uniq_charge_vehicle_service_date` criado sobre `(vehicle_id, service_key, charge_date)` apenas para linhas não canceladas. As duplicatas existentes foram canceladas antes.
+
+**Efeito colateral a conhecer:** dois extras iguais no mesmo veículo e no mesmo dia (dois `remocao_plotagem` em 10/08, por exemplo) passam a ser recusados. Se acontecer de verdade, use datas diferentes ou uma única cobrança com o valor somado.
 
 ### 🟡 O modelo não representa reentrada
 

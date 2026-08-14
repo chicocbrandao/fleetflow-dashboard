@@ -61,7 +61,9 @@ O schema `public` tem 33 tabelas, mas **apenas 10 fazem parte do FleetFlow**. O 
 
 **Regra de ouro:** todo somatório de faturamento precisa filtrar `status <> 'cancelled'`. Um terço das linhas está cancelada — resultado das conciliações de julho e agosto.
 
-**Não existe constraint UNIQUE** de `(vehicle_id, service_key, charge_date)`. A idempotência das diárias depende exclusivamente do `NOT EXISTS` dentro de `launch_daily_charges()`. Qualquer código novo que insira diárias precisa repetir essa checagem.
+**Índice único** `uniq_charge_vehicle_service_date` sobre `(vehicle_id, service_key, charge_date)`, aplicado apenas às linhas com `status <> 'cancelled'` — cancelar uma cobrança libera o slot, que é o que faz o botão Desfazer e os relançamentos continuarem funcionando.
+
+Ele existe desde 14/08/2026. Antes disso a idempotência dependia só do `NOT EXISTS` dentro de `launch_daily_charges()`, e três linhas duplicadas passaram: uma dupla submissão do PWA em REC (`TEY8C68`, 09/06, R$ 88 cobrados duas vezes) e uma diária de entrada repetida em SSA (`QMZ7C56`, 22/05). Foram canceladas na mesma data.
 
 Distribuição: `diaria` 3.455, `desmobilizacao` 45, `ativacao` 23, extras 4. Período coberto: 01/04/2026 a 14/08/2026.
 
@@ -242,3 +244,4 @@ Duas ainda têm dados residuais: `service_orders` (65) e `quotes` (55). E `clien
 | 20260814174127 | `ai_read_sql_function` |
 | 20260814174148 | `ai_read_sql_function_v2` |
 | 20260814· | `harden_definer_function_grants` |
+| 20260814· | `unique_charge_per_vehicle_service_date` |

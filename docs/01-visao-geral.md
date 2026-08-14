@@ -66,5 +66,5 @@ Duas coisas que costumam confundir quem chega agora:
 - 188 veículos cadastrados — 42 em pátio, 145 finalizados, 1 arquivado
 - 3.527 cobranças lançadas — R$ 42.170 de receita bruta acumulada contra R$ 29.630 de custo de parceiro
 - Distribuição por pátio: SSA 112, REC 70, NAT 6
-- Medição fechada abril–julho/2026: **R$ 27.158**
+- Medição fechada abril–julho/2026: **R$ 27.070**
 - Contratos Unidas e Refran vigentes desde 27/07/2026

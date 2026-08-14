@@ -95,11 +95,20 @@ Comparação de **144 vistorias** de abril a 14/08 contra os movimentos do siste
 |---|---|
 | Abril | R$ 4.152 |
 | Maio | R$ 5.500 |
-| Junho | R$ 9.056 |
+| Junho | R$ 8.968 |
 | Julho | R$ 8.450 |
-| **Abril a julho** | **R$ 27.158** |
+| **Abril a julho** | **R$ 27.070** |
 
-O total anterior era R$ 26.264 — as conciliações **aumentaram** a medição em R$ 894 líquidos, apesar de terem cancelado mais de mil diárias. O que se recuperou em lançamentos faltantes superou o que se devolveu em cobrança indevida.
+O total anterior era R$ 26.264 — as conciliações **aumentaram** a medição, apesar de terem cancelado mais de mil diárias. O que se recuperou em lançamentos faltantes superou o que se devolveu em cobrança indevida.
+
+### Limpeza de duplicatas — 14/08/2026
+
+Ao criar o índice único de cobranças, apareceram três linhas duplicadas que nenhuma conciliação anterior tinha pego, porque não eram erro de data e sim de gravação:
+
+- **`TEY8C68`** (REC, 09/06) — a mesma desmobilização foi lançada duas vezes no PWA, com seis minutos de diferença e duas fotos distintas. Cobrou R$ 88 a mais do cliente e R$ 63,70 a mais do parceiro.
+- **`QMZ7C56`** (SSA, 22/05) — a diária de entrada foi lançada duas vezes, com três semanas de intervalo. R$ 6,50 a mais no parceiro.
+
+As três foram canceladas e junho caiu de R$ 9.056 para **R$ 8.968**. O índice único impede que se repita.
 
 ---
 
