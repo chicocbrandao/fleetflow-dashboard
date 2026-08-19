@@ -1,36 +1,30 @@
-# FleetFlow — Dashboard interno
+# FleetFlow — Sistema de Gestão de Pátios
 
-Painel de gestão da operação de pátios do FleetFlow (Stellantis e Unidas), publicado em
-**https://dash.fleetflow.digital** pelo GitHub Pages.
+Sistema completo de gestão de pátios de veículos da **FleetFlow / CPB Auto Peças e Pneus Ltda** (CNPJ 39.372.547/0001-53), operando os pátios de **Salvador (SSA)**, **Recife (REC)** e **Natal (NAT)** para os clientes **Stellantis Locadora** e **Unidas**, com fornecimento de pátio pela **Refran** em Salvador.
 
-É um único `index.html`, sem build: bibliotecas por CDN (Chart.js, SheetJS, jsPDF, Supabase JS)
-e leitura direta do banco. Traz KPIs, gráficos, a seção Unidas × Refran com simulador de contrato,
-consulta por placa, veículos em pátio, medição mensal com export para Excel e PDF, e um
-assistente de IA que responde perguntas e monta relatórios sobre o banco.
+## Componentes
 
-## Documentação do sistema
+| Componente | URL | Hospedagem |
+|---|---|---|
+| Dashboard interno (gestão) | https://dash.fleetflow.digital | GitHub Pages (este repositório) |
+| PWA operacional (encarregados) | https://app.fleetflow.digital | Vercel (`patio-pwa`) |
+| Portal do cliente Unidas | https://unidas.fleetflow.digital | Vercel |
+| Portal do fornecedor Refran | https://refran.fleetflow.digital | Vercel |
+| Banco de dados + funções | Supabase (projeto `sqbjxabftqtzdigjhivl`) | Supabase Cloud |
+| Robô de ingestão Vexsoft | tarefa agendada (hora em hora) | Claude Code Remote |
+| Robô de auditoria semanal | tarefa agendada (segunda 8h) | Claude Code Remote |
 
-A documentação técnica completa do FleetFlow — não só deste dashboard — está em **[`docs/`](docs/)**.
+## Documentação
 
-| # | Documento |
-|---|---|
-| 01 | [Visão geral](docs/01-visao-geral.md) |
-| 02 | [Arquitetura](docs/02-arquitetura.md) |
-| 03 | [Banco de dados](docs/03-banco-de-dados.md) |
-| 04 | [Regras de negócio](docs/04-regras-de-negocio.md) |
-| 05 | [PWA dos operadores](docs/05-pwa-operadores.md) |
-| 06 | [Dashboard e assistente de IA](docs/06-dashboard-e-assistente.md) |
-| 07 | [Integrações](docs/07-integracoes.md) |
-| 08 | [Operação e runbook](docs/08-operacao-e-runbook.md) |
-| 09 | [Histórico e conciliações](docs/09-historico-e-conciliacoes.md) |
-| 10 | [Pendências e riscos](docs/10-pendencias-e-riscos.md) |
+1. [Arquitetura](docs/01-arquitetura.md)
+2. [Banco de dados](docs/02-banco-de-dados.md)
+3. [Regras de negócio e contratos](docs/03-regras-de-negocio.md)
+4. [PWA operacional](docs/04-pwa-operacional.md)
+5. [Robô Vexsoft](docs/05-robo-vexsoft.md)
+6. [Dashboard e Chat IA](docs/06-dashboard.md)
+7. [Operação e runbook](docs/07-operacao-runbook.md)
+8. [Segurança e acessos](docs/08-seguranca-acessos.md)
 
-## Como publicar uma alteração
+A versão consolidada em PDF está em `docs/pdf/FleetFlow-Documentacao.pdf`.
 
-```bash
-git add -A && git commit -m "..." && git push origin main
-```
-
-O GitHub Pages republica em cerca de 2 minutos.
-
-> ⚠️ **Repositório público.** Não commite chaves de API, tokens, senhas ou hashes.
+*Última revisão: 19/08/2026.*
