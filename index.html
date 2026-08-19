@@ -268,6 +268,9 @@ tr:hover td { background: rgba(59,130,246,0.05); }
       <button onclick="filterPatio('REC')">REC</button>
       <button onclick="filterPatio('SSA')">SSA</button>
       <button onclick="filterPatio('NAT')">NAT</button>
+      <span style="flex:1"></span>
+      <button onclick="exportPatioXlsx()" style="background:#0a7d36;color:#fff">&#11015; XLSX</button>
+      <button onclick="exportPatioPdf()" style="background:#b3261e;color:#fff">&#11015; PDF</button>
     </div>
     <div class="table-scroll">
       <table>
@@ -584,6 +587,57 @@ function renderPatio() {
       <td class="text-right money">${fmt(custo)}</td>
     </tr>`;
   }).join('');
+}
+
+function patioExportRows() {
+  const today = new Date();
+  const patio = allVehicles.filter(v => v.status === 'patio');
+  const filtered = patioFilter === 'TODOS' ? patio : patio.filter(v => parsePraca(v.notes) === patioFilter);
+  filtered.sort((a,b) => (parsePraca(a.notes)+a.plate).localeCompare(parsePraca(b.notes)+b.plate));
+  return filtered.map(v => {
+    const isUnidas = v.client_id === UNIDAS_ID;
+    const dias = daysBetween(v.estimated_arrival_date, today.toISOString().slice(0,10));
+    return {
+      'Praça': parsePraca(v.notes),
+      'Placa': v.plate,
+      'Veículo': ((v.brand||'') + ' ' + (v.model||'')).trim(),
+      'Cliente': isUnidas ? 'Unidas' : 'Stellantis',
+      'Tipo': isUnidas ? 'Guarda' : parseType(v.notes),
+      'Entrada': fmtDate(v.estimated_arrival_date),
+      'Dias em Pátio': dias,
+      'Conferido ✓': '',
+    };
+  });
+}
+
+function exportPatioXlsx() {
+  const rows = patioExportRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:7},{wch:10},{wch:26},{wch:10},{wch:15},{wch:12},{wch:12},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pátio ' + patioFilter);
+  XLSX.writeFile(wb, 'patio_' + patioFilter.toLowerCase() + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+function exportPatioPdf() {
+  const rows = patioExportRows();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const w = doc.internal.pageSize.getWidth();
+  doc.setFontSize(14); doc.setTextColor(31,56,100);
+  doc.text('FleetFlow — Conferência de Pátio (' + patioFilter + ')', w/2, 14, {align:'center'});
+  doc.setFontSize(9); doc.setTextColor(120);
+  doc.text('Posição de ' + new Date().toLocaleString('pt-BR') + ' · ' + rows.length + ' veículos', w/2, 20, {align:'center'});
+  doc.autoTable({
+    startY: 26,
+    head: [Object.keys(rows[0] || {'Pátio':''})],
+    body: rows.map(r => Object.values(r)),
+    styles: { fontSize: 8.5, cellPadding: 2 },
+    headStyles: { fillColor: [31,56,100] },
+    columnStyles: { 7: { cellWidth: 22 } },
+    margin: { left: 8, right: 8 },
+  });
+  doc.save('patio_' + patioFilter.toLowerCase() + '_' + new Date().toISOString().slice(0,10) + '.pdf');
 }
 
 function filterPatio(p) {
