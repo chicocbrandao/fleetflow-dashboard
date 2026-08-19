@@ -57,7 +57,7 @@ Escopo: REC, SSA e NAT.
 
 ### Onde o robô roda (desde 19/08/2026)
 
-Script Python **no Mac mini**: `Desktop/FLeet Flow/robos/robo_vexsoft.py`, agendado pelo launchd (`br.fleetflow.robo-vexsoft`) **de hora em hora no minuto 35**. Ele lê a caixa `chico@clampatrimonial.com.br` (AZPark Mail, onde chegam os e-mails do Vexsoft) via IMAP com senha de app, extrai os campos do PDF com pypdf e grava no Supabase via REST. A praça é determinada pelo **CEP/cidade do endereço da vistoria** (4xxxx→SSA, 50–56xxx→REC, 59xxx→NAT). Logs em `robos/logs/robo_vexsoft.log`. Exceções disparam push (`push-broadcast`).
+Script Python **no Mac mini** (`macmini-server`, acesso por `ssh mini` — ver memory `reference_acesso_mac_mini`): `/Users/agent/fleetflow/robos/robo_vexsoft.py`, agendado pelo launchd (`br.fleetflow.robo-vexsoft`) **de hora em hora no minuto 35**. Cópia de trabalho dos scripts também em `Desktop/FLeet Flow/robos/` (iCloud) no MacBook. Ele lê a caixa `chico@clampatrimonial.com.br` (AZPark Mail, onde chegam os e-mails do Vexsoft) via IMAP com senha de app, extrai os campos do PDF com pypdf e grava no Supabase via REST. A praça é determinada pelo **CEP/cidade do endereço da vistoria** (4xxxx→SSA, 50–56xxx→REC, 59xxx→NAT). Logs em `robos/logs/robo_vexsoft.log`. Exceções disparam push (`push-broadcast`).
 
 Transição: a tarefa agendada na nuvem (cron `20 * * * *` UTC) roda **em paralelo até ~26/08/2026** como rede de segurança e depois será desativada. O dedupe por `gmail_message_id` **e por `vistoria_id`** garante que os dois nunca lançam a mesma vistoria duas vezes.
 
