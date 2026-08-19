@@ -28,18 +28,26 @@ Escopo: REC, SSA e NAT.
    → Tipo Operação, km, marca/modelo, endereço
         │
         ▼
-  roteamento de pátio pelo endereço
-   José Bonifácio/Recife ....... REC
-   Salvador / Lauro de Freitas .. SSA
-   Natal ........................ NAT
+  roteamento de pátio pela UF do endereço (regra de 19/08)
+   Bahia (Salvador, Lauro de Freitas,
+          Camaçari, Arembepe…) ......... SSA
+   Pernambuco (Recife, Torre…) ......... REC
+   Rio Grande do Norte (Natal,
+          Parnamirim, Candelária…) ..... NAT
+   (exceção só se nem UF nem cidade
+    conhecida forem identificáveis)
         │
         ▼
   valida a placa no padrão Mercosul
         │
         ▼
   DECISÃO
-   ├─ sem veículo ativo com essa placa ......... cria ENTRADA (+ taxa + 1ª diária)
-   ├─ já em pátio, mesmo tipo .................. lança SAÍDA (sem cobrança)
+   ├─ DESMOB sem veículo ativo ................. cria ENTRADA (+ taxa + 1ª diária)
+   ├─ DESMOB já em pátio ....................... lança SAÍDA (sem cobrança)
+   ├─ ATIVAÇÃO com veículo em pátio ............ lança SAÍDA (entrada veio do PWA)
+   ├─ ATIVAÇÃO SEM entrada no PWA (19/08) ...... NÃO lança: insere em
+   │    entradas_pendentes → push ao operador  → acao aguardando_entrada_pwa
+   │    (por determinação da Stellantis, entrada de ativação é só pelo PWA)
    ├─ movimento já registrado no PWA (±2 dias) . duplicado_pwa → não lança
    └─ conflito / placa inválida / endereço      . excecao → push, não lança
         │

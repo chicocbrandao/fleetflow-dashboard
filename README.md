@@ -6,25 +6,27 @@ Sistema completo de gestão de pátios de veículos da **FleetFlow / CPB Auto Pe
 
 | Componente | URL | Hospedagem |
 |---|---|---|
-| Dashboard interno (gestão) | https://dash.fleetflow.digital | GitHub Pages (este repositório) |
+| Dashboard interno (gestão + assistente IA) | https://dash.fleetflow.digital | GitHub Pages (este repositório) |
 | PWA operacional (encarregados) | https://app.fleetflow.digital | Vercel (`patio-pwa`) |
 | Portal do cliente Unidas | https://unidas.fleetflow.digital | Vercel |
 | Portal do fornecedor Refran | https://refran.fleetflow.digital | Vercel |
 | Banco de dados + funções | Supabase (projeto `sqbjxabftqtzdigjhivl`) | Supabase Cloud |
 | Robô de ingestão Vexsoft | tarefa agendada (hora em hora) | Claude Code Remote |
-| Robô de auditoria semanal | tarefa agendada (segunda 8h) | Claude Code Remote |
+| Robô de auditoria física | tarefa agendada (segunda 8h) | Claude Code Remote |
 
 ## Documentação
 
-1. [Arquitetura](docs/01-arquitetura.md)
-2. [Banco de dados](docs/02-banco-de-dados.md)
-3. [Regras de negócio e contratos](docs/03-regras-de-negocio.md)
-4. [PWA operacional](docs/04-pwa-operacional.md)
-5. [Robô Vexsoft](docs/05-robo-vexsoft.md)
-6. [Dashboard e Chat IA](docs/06-dashboard.md)
-7. [Operação e runbook](docs/07-operacao-runbook.md)
-8. [Segurança e acessos](docs/08-seguranca-acessos.md)
+1. [Visão geral](docs/01-visao-geral.md)
+2. [Arquitetura](docs/02-arquitetura.md)
+3. [Banco de dados](docs/03-banco-de-dados.md)
+4. [Regras de negócio](docs/04-regras-de-negocio.md)
+5. [Pátio PWA (operadores)](docs/05-pwa-operadores.md)
+6. [Dashboard e assistente de IA](docs/06-dashboard-e-assistente.md)
+7. [Integrações (Vexsoft, push, e-Gate)](docs/07-integracoes.md)
+8. [Operação e runbook](docs/08-operacao-e-runbook.md)
+9. [Histórico e conciliações](docs/09-historico-e-conciliacoes.md)
+10. [Pendências e riscos](docs/10-pendencias-e-riscos.md)
 
-A versão consolidada em PDF está em `docs/pdf/FleetFlow-Documentacao.pdf`.
+A versão consolidada em PDF está em [`docs/pdf/FleetFlow-Documentacao.pdf`](docs/pdf/FleetFlow-Documentacao.pdf).
 
 *Última revisão: 19/08/2026.*

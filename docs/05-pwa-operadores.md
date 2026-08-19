@@ -141,6 +141,19 @@ A tela lista os registros de `entradas_pendentes` com status `pendente` e pede u
 
 > ⚠️ A tela **não filtra por pátio** — hoje Bira consegue ver e resolver pendências de Natal. Ver [pendências](10-pendencias-e-riscos.md).
 
+## Tela de conferência de pátio (`/home/patio`) — 19/08
+
+Posição atual do pátio do operador (placa, veículo, cliente, entrada, dias) com botões **⬇ XLSX** e **⬇ PDF** (bibliotecas carregadas de CDN sob demanda). Mesma lista dos botões de exportação do dashboard — serve para imprimir e conferir o pátio fisicamente. Acesso pelo atalho "📋 Conferir pátio" na home.
+
+## Auditoria física semanal (`/home/auditoria`) — 19/08
+
+Toda segunda-feira às 8h um robô cria uma auditoria por praça (`audits` + `audit_items`, snapshot dos veículos em pátio) e o trigger do banco dispara push aos operadores. A tela mostra barra de progresso e um cartão por veículo com duas ações:
+
+- **📷 Tirar foto** — abre a câmera traseira, comprime localmente (máx. 1600 px, JPEG 80%) e sobe para o bucket `auditorias` (`{audit_id}/{placa}_{ts}.jpg`); o item vira `fotografado`.
+- **"Não está"** — marca `nao_encontrado` (com confirmação), sinalizando divergência a investigar.
+
+Quando todos os itens são resolvidos, a auditoria muda sozinha para `concluida`. Um banner violeta na home aparece enquanto houver auditoria pendente do pátio do operador.
+
 ## Notificações push
 
 O operador vê um botão "Ativar notificações de pendências" na home (só quando a permissão ainda está indefinida). Ao aceitar, a assinatura vai para `push_subscriptions`. Quando o pipeline insere uma linha em `entradas_pendentes`, um trigger chama a Edge Function `notify-entrada-pendente`, que dispara o push para todos os inscritos e remove assinaturas mortas.

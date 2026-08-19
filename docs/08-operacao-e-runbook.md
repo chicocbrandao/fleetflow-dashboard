@@ -90,6 +90,38 @@ group by 1 order by 4 desc;
 
 ---
 
+## Rotinas automáticas (visão consolidada)
+
+| Quando | O quê | Onde conferir |
+|---|---|---|
+| Diário 07:05 (Bahia) | `launch_daily_charges()` — diárias Stellantis + snapshot de ocupação (janela de 7 dias) | `vehicle_service_charges` / `daily_occupancy` |
+| A cada hora (min 20) | Robô Vexsoft processa e-mails de vistoria | `vexsoft_ingest` |
+| Segunda 08:00 (Bahia) | Robô de auditoria cria `audits`/`audit_items` por praça e o trigger dispara push aos PWAs (`push-broadcast`) | `audits` / `audit_items` / fotos no bucket `auditorias` |
+
+### Auditoria física semanal
+
+Criada em 19/08. O operador recebe o push na segunda, abre `/home/auditoria` e fotografa carro a carro (ou marca "Não está"). Acompanhamento do gestor:
+
+```sql
+-- progresso da semana
+select a.yard, a.status, a.total_items,
+       count(*) filter (where i.status='fotografado') as fotografados,
+       count(*) filter (where i.status='nao_encontrado') as nao_encontrados
+from audits a join audit_items i on i.audit_id = a.id
+where a.week_start = date_trunc('week', current_date)::date
+group by 1,2,3;
+-- divergências (carro no sistema que não está no pátio)
+select a.yard, i.plate, i.model from audit_items i
+join audits a on a.id = i.audit_id
+where i.status = 'nao_encontrado' order by a.week_start desc;
+```
+
+Um `nao_encontrado` é o gatilho para investigar saída não registrada (mesmo playbook das conciliações do capítulo 09).
+
+### Conferência de pátio (impressão)
+
+Dashboard → seção "Veículos em Pátio" → botões **XLSX**/**PDF** (a coluna "Conferido ✓" sai em branco para marcar no papel). O mesmo existe no PWA em `/home/patio`.
+
 ## Tarefas comuns
 
 ### Fechar a medição do mês (Stellantis)
