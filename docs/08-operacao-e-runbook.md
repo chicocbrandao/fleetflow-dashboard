@@ -100,6 +100,17 @@ group by 1 order by 4 desc;
 
 Os dois robôs rodam no Mac mini desde 19/08/2026 (scripts Python em `Desktop/FLeet Flow/robos/`). As tarefas agendadas equivalentes na nuvem ficam ativas em paralelo até ~26/08/2026 e depois serão desativadas. **O Mac mini precisa ficar ligado e sem hibernar**; se estiver dormindo no horário, o launchd executa a rodada perdida ao acordar.
 
+### Alerta se um robô parar (watchdog)
+
+Cada rodada bem-sucedida atualiza um **sinal de vida** na tabela `heartbeats`. Dois vigias independentes do Mac mini conferem esse sinal:
+
+| Vigia | Onde roda | Frequência | Dispara quando | Alerta por |
+|---|---|---|---|---|
+| `check_robot_heartbeats()` | `pg_cron` no Supabase | a cada 30 min | Vexsoft >2h30 sem rodar; auditoria >7d6h | web push aos PWAs (`push-broadcast`), no máx. 1 a cada 6h |
+| Vigia diário | Tarefa agendada na nuvem, 09:00 (Bahia) | 1×/dia | robô parado, >3 exceções em 24h ou pendência de entrada >48h | notificação push do app Claude no celular do gestor |
+
+Para receber o web push do primeiro vigia é preciso ter tocado em "🔔 Ativar notificações" no PWA (tabela `push_subscriptions`). O segundo vigia não depende disso.
+
 ### Auditoria física semanal
 
 Criada em 19/08. O operador recebe o push na segunda, abre `/home/auditoria` e fotografa carro a carro (ou marca "Não está"). Acompanhamento do gestor:
