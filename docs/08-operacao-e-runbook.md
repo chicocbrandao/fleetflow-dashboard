@@ -95,8 +95,10 @@ group by 1 order by 4 desc;
 | Quando | O quê | Onde conferir |
 |---|---|---|
 | Diário 07:05 (Bahia) | `launch_daily_charges()` — diárias Stellantis + snapshot de ocupação (janela de 7 dias) | `vehicle_service_charges` / `daily_occupancy` |
-| A cada hora (min 20) | Robô Vexsoft processa e-mails de vistoria | `vexsoft_ingest` |
-| Segunda 08:00 (Bahia) | Robô de auditoria cria `audits`/`audit_items` por praça e o trigger dispara push aos PWAs (`push-broadcast`) | `audits` / `audit_items` / fotos no bucket `auditorias` |
+| A cada hora (min 35) | Robô Vexsoft (**Mac mini**, launchd `br.fleetflow.robo-vexsoft`) processa e-mails de vistoria | `vexsoft_ingest` / `robos/logs/robo_vexsoft.log` |
+| Segunda 08:00 (Bahia) | Robô de auditoria (**Mac mini**, launchd `br.fleetflow.robo-auditoria`) cria `audits`/`audit_items` por praça e o trigger dispara push aos PWAs (`push-broadcast`) | `audits` / `audit_items` / fotos no bucket `auditorias` |
+
+Os dois robôs rodam no Mac mini desde 19/08/2026 (scripts Python em `Desktop/FLeet Flow/robos/`). As tarefas agendadas equivalentes na nuvem ficam ativas em paralelo até ~26/08/2026 e depois serão desativadas. **O Mac mini precisa ficar ligado e sem hibernar**; se estiver dormindo no horário, o launchd executa a rodada perdida ao acordar.
 
 ### Auditoria física semanal
 
@@ -223,6 +225,9 @@ update cron.job set active = false where jobid = 2;   -- pausar
 | OCR erra a placa | Foto ruim ou caractere ambíguo | O operador corrige na tela de revisão; a confiança "baixa" é o alerta |
 | Veículo não encontrado na saída | Cliente errado no seletor (Stellantis × Unidas) | Conferir o toggle; a busca filtra por cliente |
 | Push não chega | `push_subscriptions` está vazia | Operador precisa aceitar a notificação no PWA instalado |
+| Robô Vexsoft não roda no horário | Mac mini desligado/dormindo, ou agente descarregado | Conferir `robos/logs/`; `launchctl list \| grep fleetflow`; recarregar com `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/br.fleetflow.robo-vexsoft.plist` |
+| Robô Vexsoft: erro de login no Gmail | Senha de app revogada/trocada | Criar nova senha de app na conta `chico@clampatrimonial.com.br` e atualizar `GMAIL_APP_PASSWORD` em `robos/.env` |
+| Robô lança tudo como exceção | Vexsoft mudou o formato do e-mail/PDF | Ajustar regexes em `robos/robo_vexsoft.py` (`parse_email`/`read_pdf`) |
 
 ## Gotchas do ambiente local
 

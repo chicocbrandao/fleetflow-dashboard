@@ -55,9 +55,11 @@ Escopo: REC, SSA e NAT.
   registra a decisão em vexsoft_ingest
 ```
 
-### Agendamento
+### Onde o robô roda (desde 19/08/2026)
 
-Tarefa agendada externa, cron `20 * * * *` (UTC) — de hora em hora. Exceções e conclusões relevantes disparam push notification.
+Script Python **no Mac mini**: `Desktop/FLeet Flow/robos/robo_vexsoft.py`, agendado pelo launchd (`br.fleetflow.robo-vexsoft`) **de hora em hora no minuto 35**. Ele lê a caixa `chico@clampatrimonial.com.br` (AZPark Mail, onde chegam os e-mails do Vexsoft) via IMAP com senha de app, extrai os campos do PDF com pypdf e grava no Supabase via REST. A praça é determinada pelo **CEP/cidade do endereço da vistoria** (4xxxx→SSA, 50–56xxx→REC, 59xxx→NAT). Logs em `robos/logs/robo_vexsoft.log`. Exceções disparam push (`push-broadcast`).
+
+Transição: a tarefa agendada na nuvem (cron `20 * * * *` UTC) roda **em paralelo até ~26/08/2026** como rede de segurança e depois será desativada. O dedupe por `gmail_message_id` **e por `vistoria_id`** garante que os dois nunca lançam a mesma vistoria duas vezes.
 
 ### Rastreamento
 
@@ -68,14 +70,15 @@ Cada e-mail processado vira uma linha em `vexsoft_ingest`, com a decisão no cam
 | `entrada_criada` | veículo entrou (ou reentrou) e a cobrança foi lançada |
 | `saida_lancada` | ciclo fechado |
 | `duplicado_pwa` | o operador já tinha lançado; nada foi feito |
+| `aguardando_entrada_pwa` | ativação sem entrada — pendência criada e push enviado ao operador |
 | `excecao` | precisa de decisão humana |
 
-`gmail_message_id` é UNIQUE — é o que garante que reprocessar a caixa não duplica nada.
+`gmail_message_id` é UNIQUE e o robô também confere o `vistoria_id` — é o que garante que reprocessar a caixa (ou rodar dois robôs em paralelo) não duplica nada.
 
 ### Limitações conhecidas
 
 - **E-mails com mais de 3 dias não são processados.** Retroativos continuam sendo trabalho manual.
-- Se a Vexsoft mudar o formato do e-mail ou do PDF, o robô passa a gerar exceções — o conserto é ajustar o prompt da tarefa agendada.
+- Se a Vexsoft mudar o formato do e-mail ou do PDF, o robô passa a gerar exceções — o conserto é ajustar as expressões regulares em `robos/robo_vexsoft.py` (funções `parse_email` e `read_pdf`).
 - O pipeline **não baixa nem arquiva os PDFs assinados**. Se uma auditoria exigir os comprovantes, isso ainda é feito à parte.
 
 ### Entradas pendentes

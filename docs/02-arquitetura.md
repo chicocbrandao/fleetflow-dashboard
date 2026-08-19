@@ -41,8 +41,8 @@
                     │                                    │
         ┌───────────┴────────────┐            ┌──────────┴───────────┐
         │  Pipeline Vexsoft      │            │  Anthropic API       │
-        │  tarefa agendada       │            │  claude-sonnet-5     │
-        │  20 * * * * (UTC)      │            │  · OCR de placa      │
+        │  Mac mini (launchd)    │            │  claude-sonnet-5     │
+        │  hora em hora (min 35) │            │  · OCR de placa      │
         │  Gmail → PDF → banco   │            │  · assistente SQL    │
         └────────────────────────┘            └──────────────────────┘
 ```
@@ -79,7 +79,7 @@ Duas páginas HTML estáticas, uma por contraparte, com projeto Vercel próprio 
 
 ### Pipeline Vexsoft
 
-Tarefa agendada externa que roda de hora em hora, lê os e-mails de vistoria da Vexsoft no Gmail, abre o PDF, identifica placa/tipo/pátio e lança o movimento no banco. Desde 13/08/2026 é a **entrada principal de dados da Stellantis**; o PWA virou backup para esse cliente. A Unidas continua 100% no PWA.
+Script Python no **Mac mini** (launchd, hora em hora no minuto 35) que lê os e-mails de vistoria da Vexsoft no Gmail (IMAP), abre o PDF, identifica placa/tipo/pátio e lança o movimento no banco. Desde 13/08/2026 é a **entrada principal de dados da Stellantis**; o PWA virou backup para esse cliente. A Unidas continua 100% no PWA.
 
 Detalhes em [07 — Integrações](07-integracoes.md).
 

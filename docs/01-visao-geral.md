@@ -29,7 +29,7 @@ Os operadores são prestadores terceirizados. **Nenhuma tela mostrada a eles exi
 | **Banco** | Postgres com todo o estado: veículos, cobranças, ocupação, contratos | Supabase (`sa-east-1`) |
 | **Dashboard interno** | KPIs, medição mensal com export, seção Unidas × Refran, assistente de IA | GitHub Pages (HTML único) |
 | **Assistente de IA** | Chat que responde perguntas e monta relatórios consultando o banco em modo leitura | Rota `/api/ask` dentro do PWA |
-| **Pipeline Vexsoft** | Robô horário que lê vistorias no Gmail, abre o PDF e lança o movimento | Tarefa agendada externa |
+| **Pipeline Vexsoft** | Robô horário que lê vistorias no Gmail, abre o PDF e lança o movimento | Python no Mac mini (launchd) |
 | **Portais externos** | Duas páginas estáticas de prestação de contas, uma para a Unidas e outra para a Refran | Vercel + Edge Functions |
 | **Cron de diárias** | Job diário que lança as diárias e recalcula os snapshots de ocupação | `pg_cron` no Supabase |
 
