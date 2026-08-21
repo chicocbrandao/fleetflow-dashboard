@@ -71,7 +71,10 @@ Cada e-mail processado vira uma linha em `vexsoft_ingest`, com a decisão no cam
 | `saida_lancada` | ciclo fechado |
 | `duplicado_pwa` | o operador já tinha lançado; nada foi feito |
 | `aguardando_entrada_pwa` | ativação sem entrada — pendência criada e push enviado ao operador |
+| `fora_do_escopo` | vistoria de transporte/coleta de carro que **não** está no pátio — só registro, sem aviso |
 | `excecao` | precisa de decisão humana |
+
+**Transporte/coleta (regra de 20/08):** vistorias com Tipo Operação de transporte ou coleta são cruzadas com o pátio: carro **em pátio** → exceção com push (pode ser uma saída acontecendo); carro fora do sistema → `fora_do_escopo`, sem aviso.
 
 `gmail_message_id` é UNIQUE e o robô também confere o `vistoria_id` — é o que garante que reprocessar a caixa (ou rodar dois robôs em paralelo) não duplica nada.
 
