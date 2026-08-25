@@ -231,6 +231,7 @@ update cron.job set active = false where jobid = 2;   -- pausar
 | Assistente devolve 307 / cai no login | `/api/ask` fora da lista de rotas públicas do middleware | Conferir `lib/supabase/middleware.ts` |
 | Loop infinito de login no PWA | Cookies perdidos no redirect do middleware | `createRedirectWithCookies()` precisa copiar os cookies |
 | Diárias duplicadas em um dia | Alguém inseriu diária fora do cron | Não existe UNIQUE no banco: cancelar as duplicadas à mão |
+| PWA: "já está no pátio, com entrada em DD/MM" | o carro já foi lançado antes — o operador está repetindo | é aviso, não erro. Antes (até 21/08) aparecia como erro técnico de *duplicate key*. Conferir em "Conferir pátio"; se o carro saiu e voltou, registrar a saída primeiro |
 | Dashboard mostra menos carros que o real | Lançamento retroativo fora da janela de 7 dias do snapshot | Recalcular `daily_occupancy` do período |
 | Saída aparece um dia adiantada | Conversão de fuso em `withdrawal_date` | Usar `withdrawal_date::date` sem `at time zone` |
 | OCR erra a placa | Foto ruim ou caractere ambíguo | O operador corrige na tela de revisão; a confiança "baixa" é o alerta |

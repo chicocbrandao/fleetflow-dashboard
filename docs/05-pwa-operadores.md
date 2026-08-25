@@ -65,7 +65,8 @@ Contas: `bira@fleetflow.app` (SSA), `diego@fleetflow.app` (REC), `marcos@fleetfl
 ## O fluxo de uma movimentação
 
 ```
- 1. FOTO            input capture=environment (câmera traseira), limite de 25 MB
+ 1. FOTO            câmera traseira (input capture=environment) OU galeria
+                    (botão "🖼️ Escolher foto da galeria", 20/08), limite de 25 MB
         │
  2. COMPRESSÃO      canvas → maior lado 1920px, JPEG 85%
         │           (para caber no limite de 5 MB da API de visão)

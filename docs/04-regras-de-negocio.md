@@ -34,13 +34,28 @@ O padrão: **a entrada cobra a taxa do tipo mais a primeira diária; a saída n�
 
 | | Cliente (Stellantis) | Parceiro (pátio) |
 |---|---|---|
-| Valor | R$ 10,00/dia | R$ 6,50/dia |
+| Valor | R$ 10,00/dia | **varia por praça** — ver abaixo |
 | Carência | **7 dias** — dias 1 a 7 saem R$ 0 | nenhuma — cobra desde o dia 1 |
+
+### Custo do parceiro por praça (21/08/2026)
+
+A tabela `partner_daily_rates` é a fonte única do que o parceiro cobra por diária:
+
+| Praça | Parceiro | Diária |
+|---|---|---|
+| SSA | Refran | **R$ 4,00** |
+| REC | — | R$ 6,50 |
+| NAT | — | R$ 6,50 |
+
+Leem essa tabela: o cron (via `partner_diaria_rate(yard)`), o PWA na entrada e o robô Vexsoft. `service_pricing.partner_price` fica só como fallback. Para mudar um valor basta um UPDATE em `partner_daily_rates` — nenhum código muda.
+
+> **Correção histórica de 21/08:** 2.570 diárias de SSA estavam com R$ 6,50 (uma delas com R$ 65,00, digitação errada) e foram ajustadas para R$ 4,00 — o custo Refran no histórico caiu R$ 6.483,50 e a margem subiu no mesmo valor.
 
 - A **primeira diária** é lançada junto com a taxa, no momento da entrada.
 - As **demais** são lançadas pelo cron `launch_daily_charges`, todo dia às **07:05 (America/Bahia)**, uma por veículo com `status = 'patio'`.
 - **O dia de entrada e o dia de saída contam.**
 - O cron é idempotente: não duplica a diária de um dia já lançado.
+- **Entradas retroativas (21/08):** o cron preenche todos os dias em aberto desde a entrada, não só o dia corrente. Antes, um carro que entrou dia 13 e foi lançado dia 20 ficava sem as diárias do meio — 220 lançamentos foram recuperados nessa correção.
 
 ## Extras
 
