@@ -10,7 +10,9 @@ Um único arquivo `index.html` servido pelo GitHub Pages. Sem build, sem framewo
 |---|---|
 | `@supabase/supabase-js` | leitura das tabelas |
 | `chart.js` | gráficos |
-| `xlsx` (SheetJS) | export Excel |
+| `xlsx` (SheetJS) | export Excel do pátio e das tabelas do assistente |
+| `exceljs` | export Excel da **medição** (formato Stellantis, com estilos e fórmulas) |
+| `medicao.js` (próprio) | regras da medição + montagem da planilha, compartilhado com scripts Node |
 | `jspdf` + `jspdf-autotable` | export PDF |
 
 > **Nota histórica:** o jsPDF é carregado do **jsDelivr**. A URL antiga do cdnjs (2.5.2) passou a devolver 404 em 11/08/2026 e quebrou o export PDF sem aviso. Se o PDF parar de funcionar, o primeiro suspeito é o CDN.
@@ -35,6 +37,20 @@ Desde 14/08/2026 o login também guarda a senha em `sessionStorage`, porque é e
 
 **Medição mensal** — seletor de mês, filtro por tipo (todos / ativação / desmobilização), totalizadores e a tabela detalhada por veículo, com **export para Excel e PDF**. A medição **exclui a Unidas** (que tem apuração própria).
 
+### Export Excel da medição — formato Stellantis (desde 02/10/2026)
+
+Em setembro/2026 a Stellantis devolveu a medição de agosto com uma aba própria, **"Validação" — Demonstrativo de Faturamento**, e pediu que a medição passasse a ser apresentada nesse layout. O botão **Excel** da medição gera exatamente esse formato:
+
+- **Aba `Resumo`** — uma linha por praça × serviço (veículos, diárias, check list, total) com fórmulas apontando para as abas de detalhe, total geral e as regras aplicadas.
+- **Uma aba por praça × serviço** (`SSA - Ativação`, `SSA - Desmob`, `REC - Ativação`, `REC - Desmob`, `NAT - ...`; só as que têm veículo no mês) com as colunas da aba Validação, na mesma ordem e com os mesmos títulos: Placa · Modelo · Data Inicial Entrada · Período de Cobrança INICIO/FINAL · Valor da Diária · Qtd Diárias (`=E-D+1`) · Carência Diárias · Desconto carência (`=F*H`) · Valor Devido Diárias (`=MAX(0,G*F-I)`) · Valor do Check List · Lavagem · Abastecimento · Valor Final (`=SUM(J:M)`) · Observações · **Validação** e **Comentários** (em branco, para a Stellantis preencher). Linha 1 traz `SUBTOTAL(9, …)` — respeita o filtro automático — e a última linha o total da aba.
+- Nome do arquivo: `MM.AAAA - Demonstrativo Faturamento <Mês> <Ano> - CPB.xlsx`.
+
+Regras de linha: remanescente de mês anterior entra com período a partir do dia 1º e sem carência; veículo que entrou no mês traz o check list (190/88) e a carência de 7 dias (ou os dias que ainda restavam dela, se a entrada foi no fim do mês anterior). As fórmulas ficam vivas: se a Stellantis mexer numa data, os valores recalculam.
+
+O código fica em **`medicao.js`** (`calcMeasurementRows` + `buildMedicaoStellantis`), carregado pelo `index.html` e também usável em Node (`require('./medicao.js')`) — foi assim que a planilha de setembro/2026 foi gerada e conferida contra o export do navegador, célula a célula. Alterar uma regra ali muda o painel e a planilha ao mesmo tempo.
+
+> **Correção embutida (02/10):** a carência de estadias curtas estava errada no painel — carro que entrava e saía dentro da carência pagava 1 diária (foi o caso do TEC8D82 na medição de agosto, R$ 10 a mais, que a Stellantis marcou como *Nok*). O cálculo agora conta os dias isentos de forma inclusiva (dia da entrada + 6).
+
 ## Cálculos feitos no navegador
 
 O dashboard não lê `vehicle_service_charges` para montar a medição — ele **recalcula** a partir de `vehicles`, aplicando as regras direto no JavaScript. Isso é rápido e simples, mas significa que **o dashboard e o banco podem divergir** se as cobranças tiverem sido ajustadas manualmente. Para o número contratual, a fonte é sempre `vehicle_service_charges`; para o número gerencial do dia a dia, o dashboard basta.
@@ -54,6 +70,7 @@ Constantes no topo do arquivo: carência de 7 dias, diária R$ 10, ativação R$
 | — | medição mensal passou a excluir a Unidas |
 | 11/08 | jsPDF migrado para o jsDelivr |
 | 14/08 | assistente de IA |
+| 02/10 | export Excel da medição no formato Stellantis (`medicao.js` + ExcelJS); carência de estadias curtas corrigida |
 
 ## Como atualizar
 

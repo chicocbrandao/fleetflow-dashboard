@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="medicao.js?v=20261002"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -348,32 +350,7 @@ const UNIDAS_ID = 'fea28c45-8ca5-4550-98ad-3f9e78b7a120';
 const UNIDAS_DIARIA = 6;
 let allVehicles = [], allPricing = [], allOcc = [], allContracts = [], measType = 'all', patioFilter = 'TODOS';
 
-function parsePraca(notes) {
-  if (!notes) return '?';
-  if (notes.includes('NAT')) return 'NAT';
-  if (notes.includes('REC')) return 'REC';
-  if (notes.includes('SSA')) return 'SSA';
-  return '?';
-}
-function parseType(notes) {
-  if (!notes) return '?';
-  const up = notes.toUpperCase();
-  // Guarda Unidas não tem tipo ativação/desmob
-  if (up.includes('GUARDA')) return 'Guarda Unidas';
-  // Tipo do carro vem das palavras ATIVACAO/DESMOBILIZACAO nas notes.
-  // ENTRADA/SAIDA são o MOVIMENTO (eixo independente) — só servem de fallback
-  // pra registros legados que não têm o tipo explícito.
-  // Nas notes do PWA o 1º segmento é a ENTRADA, que define o tipo cobrado —
-  // por isso vale a palavra de tipo que aparece PRIMEIRO na string.
-  const iA = Math.min(...['ATIVAÇÃO','ATIVACAO'].map(t => up.indexOf(t)).filter(i => i >= 0).concat(Infinity));
-  const iD = Math.min(...['DESMOBILIZAÇÃO','DESMOBILIZACAO','DESMOB'].map(t => up.indexOf(t)).filter(i => i >= 0).concat(Infinity));
-  if (iA < iD) return 'Ativação';
-  if (iD < iA) return 'Desmobilização';
-  // Fallback legado (notes antigas sem tipo explícito)
-  if (up.includes('ENTRADA')) return 'Ativação';
-  if (up.includes('SAÍDA') || up.includes('SAIDA')) return 'Desmobilização';
-  return '?';
-}
+// parsePraca() e parseType() vivem em medicao.js (compartilhado com os scripts Node)
 function fmt(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 0}); }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return dt.toLocaleDateString('pt-BR', {timeZone:'UTC'}); }
 function daysBetween(a, b) { return Math.floor((new Date(b) - new Date(a)) / 86400000) + 1; }
@@ -719,60 +696,9 @@ function setMeasType(t) {
 }
 
 function calcMeasurement(year, month) {
-  const mStart = new Date(Date.UTC(year, month, 1));
-  const mLastDay = new Date(Date.UTC(year, month + 1, 0));
-  const today = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
-  const mEnd = today < mLastDay ? today : mLastDay;
-  const mStartStr = mStart.toISOString().slice(0,10);
-  const mEndStr = mEnd.toISOString().slice(0,10);
-  const mDays = mEnd.getUTCDate();
-
-  const relevant = allVehicles.filter(v => {
-    // Medição mensal = só Stellantis. Unidas tem medição própria (por ocupação, seção Unidas × Refran)
-    if (v.client_id === UNIDAS_ID) return false;
-    if (!v.estimated_arrival_date) return false;
-    const entrada = new Date(v.estimated_arrival_date + 'T00:00:00Z');
-    if (entrada > mEnd) return false;
-    if (v.withdrawal_date) {
-      const saida = new Date(v.withdrawal_date.slice(0,10) + 'T00:00:00Z');
-      if (saida < mStart) return false;
-    }
-    if (v.status === 'archived') return false;
-    return true;
-  });
-
-  return relevant.map(v => {
-    const entrada = new Date(v.estimated_arrival_date + 'T00:00:00Z');
-    const tipo = parseType(v.notes);
-    const praca = parsePraca(v.notes);
-    let saidaReal = null;
-    if (v.withdrawal_date) saidaReal = new Date(v.withdrawal_date.slice(0,10) + 'T00:00:00Z');
-    const saidaCalc = saidaReal && saidaReal <= mEnd ? saidaReal : mEnd;
-    const startCount = entrada > mStart ? entrada : mStart;
-
-    let diarias = Math.floor((saidaCalc - startCount) / 86400000) + 1;
-    if (diarias < 0) diarias = 0;
-
-    const graceEnd = new Date(entrada.getTime() + GRACE * 86400000);
-    let graceInMonth = 0;
-    if (graceEnd > mStart) {
-      const gStart = entrada > mStart ? entrada : mStart;
-      const gEnd = graceEnd < saidaCalc ? graceEnd : saidaCalc;
-      graceInMonth = Math.max(0, Math.floor((gEnd - gStart) / 86400000));
-    }
-
-    const diasCobr = Math.max(0, diarias - graceInMonth);
-    const custodia = diasCobr * DIARIA;
-    const enteredThisMonth = entrada >= mStart && entrada <= mEnd;
-    let fee = 0;
-    if (enteredThisMonth) {
-      fee = tipo === 'Ativação' ? ATIV_FEE : tipo === 'Desmobilização' ? DESM_FEE : 0;
-    }
-    const total = custodia + fee;
-    const statusStr = saidaReal && saidaReal <= mEnd ? 'FINALIZADO' : 'PÁTIO';
-
-    return { plate: v.plate, model: `${v.brand||''} ${v.model}`, tipo, praca, entrada: v.estimated_arrival_date, saida: saidaReal && saidaReal <= mEnd ? saidaReal.toISOString().slice(0,10) : null, diarias, graceInMonth, diasCobr, custodia, fee, total, status: statusStr };
-  });
+  // Regras e cálculo em medicao.js (compartilhado com os scripts Node).
+  // Corrige a carência de estadias curtas: carro que entra e sai dentro da carência não paga diária.
+  return calcMeasurementRows(allVehicles, year, month, { GRACE, DIARIA, ATIV_FEE, DESM_FEE });
 }
 
 function loadMeasurement() {
@@ -836,42 +762,28 @@ function getMeasData() {
   return { meas, periodo, tipoLabel };
 }
 
-function exportExcel() {
-  const { meas, periodo, tipoLabel } = getMeasData();
+async function exportExcel() {
+  // Layout pedido pela Stellantis (set/2026): "Demonstrativo de Faturamento" — aba Resumo +
+  // uma aba por praça/serviço com as colunas da aba Validação (Placa, Modelo, Data Inicial,
+  // Período de Cobrança, Valor Diária, Qtd, Carência, Desconto, Valor Devido, Check List,
+  // Lavagem, Abastecimento, Valor Final, Observações, Validação, Comentários). Fórmulas vivas.
+  const { meas, periodo } = getMeasData();
   if (!meas.length) return alert('Nenhum dado para exportar.');
-
-  const header = ['Praça','Placa','Veículo','Tipo','Entrada','Saída','Diárias','Carência','Dias Cobr.','Custódia (R$)','Serviço (R$)','Total (R$)','Status'];
-  const rows = meas.map(m => [
-    m.praca, m.plate, m.model, m.tipo,
-    m.entrada ? fmtDate(m.entrada) : '',
-    m.saida ? fmtDate(m.saida) : 'Em custódia',
-    m.diarias, m.graceInMonth, m.diasCobr,
-    m.custodia, m.fee, m.total, m.status
-  ]);
-
-  const totalCustodia = meas.reduce((s,m) => s + m.custodia, 0);
-  const totalServico = meas.reduce((s,m) => s + m.fee, 0);
-  const totalGeral = meas.reduce((s,m) => s + m.total, 0);
-  rows.push([]);
-  rows.push(['','','','','','','','','TOTAIS:', totalCustodia, totalServico, totalGeral, '']);
-
-  const wsData = [
-    ['MEDIÇÃO DE SERVIÇOS — FleetFlow · Stellantis'],
-    [`Período: ${periodo} | Tipo: ${tipoLabel} | Veículos: ${meas.length}`],
-    [],
-    header,
-    ...rows
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  // Column widths
-  ws['!cols'] = [{wch:8},{wch:10},{wch:18},{wch:16},{wch:12},{wch:12},{wch:8},{wch:9},{wch:10},{wch:13},{wch:12},{wch:12},{wch:12}];
-  // Merge title row
-  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}}];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Medição');
-  XLSX.writeFile(wb, `Medicao_FleetFlow_${periodo.replace(' ','_')}.xlsx`);
+  const sel = document.getElementById('mesSelect').value;
+  const [year, month] = sel.split('-').map(Number);
+  try {
+    const { wb, naoClassificados } = buildMedicaoStellantis(meas, year, month, ExcelJS);
+    if (naoClassificados.length) alert(`Atenção: ${naoClassificados.length} veículo(s) sem praça ou tipo definidos ficaram fora da planilha: ${naoClassificados.map(m => m.plate).join(', ')}. Corrija as notes no sistema.`);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nomeArquivo(year, month);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    console.error(e); alert('Falha ao gerar a planilha: ' + e.message);
+  }
 }
 
 function exportPDF() {
