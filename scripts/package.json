@@ -1,0 +1,6 @@
+{
+  "name": "fleetflow-medicao-scripts",
+  "private": true,
+  "description": "Gera a medição Stellantis (xlsx) fora do navegador com o mesmo código do dashboard",
+  "dependencies": { "exceljs": "4.4.0" }
+}
