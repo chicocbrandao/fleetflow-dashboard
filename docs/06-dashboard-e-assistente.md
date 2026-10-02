@@ -39,15 +39,14 @@ Desde 14/08/2026 o login também guarda a senha em `sessionStorage`, porque é e
 
 ### Export Excel da medição — formato Stellantis (desde 02/10/2026)
 
-Em setembro/2026 a Stellantis devolveu a medição de agosto com uma aba própria, **"Validação" — Demonstrativo de Faturamento**, e pediu que a medição passasse a ser apresentada nesse layout. O botão **Excel** da medição gera exatamente esse formato:
+Em setembro/2026 a Stellantis devolveu a medição de agosto com uma aba própria, **"Validação" — Demonstrativo de Faturamento**, e pediu que a medição passasse a ser apresentada nesse layout. O botão **Excel** da medição gera **duas pastas** nesse formato, uma por serviço — `MM.AAAA - Apuracao Ativacao <Mês> <Ano> - CPB.xlsx` e `MM.AAAA - Apuracao Desmobilizacao <Mês> <Ano> - CPB.xlsx` (o navegador pode pedir permissão para "baixar vários arquivos" na primeira vez). O filtro Todos/Ativação/Desmobilização da tela não afeta o export: saem sempre as duas. Cada pasta tem:
 
-- **Aba `Resumo`** — uma linha por praça × serviço (veículos, diárias, check list, total) com fórmulas apontando para as abas de detalhe, total geral e as regras aplicadas.
-- **Uma aba por praça × serviço** (`SSA - Ativação`, `SSA - Desmob`, `REC - Ativação`, `REC - Desmob`, `NAT - ...`; só as que têm veículo no mês) com as colunas da aba Validação, na mesma ordem e com os mesmos títulos: Placa · Modelo · Data Inicial Entrada · Período de Cobrança INICIO/FINAL · Valor da Diária · Qtd Diárias (`=E-D+1`) · Carência Diárias · Desconto carência (`=F*H`) · Valor Devido Diárias (`=MAX(0,G*F-I)`) · Valor do Check List · Lavagem · Abastecimento · Valor Final (`=SUM(J:M)`) · Observações · **Validação** e **Comentários** (em branco, para a Stellantis preencher). Linha 1 traz `SUBTOTAL(9, …)` — respeita o filtro automático — e a última linha o total da aba.
-- Nome do arquivo: `MM.AAAA - Demonstrativo Faturamento <Mês> <Ano> - CPB.xlsx`.
+- **Aba `Resumo`** — uma linha por praça (veículos, diárias, check list, total) com fórmulas apontando para as abas de detalhe, total do serviço e as regras aplicadas.
+- **Uma aba por praça** (`SSA - Ativação`, `REC - Ativação`, `NAT - Ativação` na pasta de ativação; `... - Desmob` na de desmobilização; só as praças com veículo no mês) com as colunas da aba Validação, na mesma ordem e com os mesmos títulos: Placa · Modelo · Data Inicial Entrada · Período de Cobrança INICIO/FINAL · Valor da Diária · Qtd Diárias (`=E-D+1`) · Carência Diárias · Desconto carência (`=F*H`) · Valor Devido Diárias (`=MAX(0,G*F-I)`) · Valor do Check List · Lavagem · Abastecimento · Valor Final (`=SUM(J:M)`) · Observações · **Validação** e **Comentários** (em branco, para a Stellantis preencher). Linha 1 traz `SUBTOTAL(9, …)` — respeita o filtro automático — e a última linha o total da aba.
 
 Regras de linha: remanescente de mês anterior entra com período a partir do dia 1º e sem carência; veículo que entrou no mês traz o check list (190/88) e a carência de 7 dias (ou os dias que ainda restavam dela, se a entrada foi no fim do mês anterior). As fórmulas ficam vivas: se a Stellantis mexer numa data, os valores recalculam.
 
-O código fica em **`medicao.js`** (`calcMeasurementRows` + `buildMedicaoStellantis`), carregado pelo `index.html` e também usável em Node (`require('./medicao.js')`) — foi assim que a planilha de setembro/2026 foi gerada e conferida contra o export do navegador, célula a célula. Alterar uma regra ali muda o painel e a planilha ao mesmo tempo.
+O código fica em **`medicao.js`** (`calcMeasurementRows` + `buildMedicoesMes`), carregado pelo `index.html` e também usável em Node: **`scripts/gera_medicao.js <ano> <mês> [pasta]`** (`cd scripts && npm install` uma vez) lê o banco e grava as duas pastas — foi assim que as planilhas de setembro/2026 foram geradas e conferidas contra o export do navegador, célula a célula. Alterar uma regra ali muda o painel e a planilha ao mesmo tempo.
 
 > **Correção embutida (02/10):** a carência de estadias curtas estava errada no painel — carro que entrava e saía dentro da carência pagava 1 diária (foi o caso do TEC8D82 na medição de agosto, R$ 10 a mais, que a Stellantis marcou como *Nok*). O cálculo agora conta os dias isentos de forma inclusiva (dia da entrada + 6).
 
@@ -70,7 +69,7 @@ Constantes no topo do arquivo: carência de 7 dias, diária R$ 10, ativação R$
 | — | medição mensal passou a excluir a Unidas |
 | 11/08 | jsPDF migrado para o jsDelivr |
 | 14/08 | assistente de IA |
-| 02/10 | export Excel da medição no formato Stellantis (`medicao.js` + ExcelJS); carência de estadias curtas corrigida |
+| 02/10 | export Excel da medição no formato Stellantis, em duas pastas (Ativação / Desmobilização) — `medicao.js` + ExcelJS + `scripts/gera_medicao.js`; carência de estadias curtas corrigida |
 
 ## Como atualizar
 

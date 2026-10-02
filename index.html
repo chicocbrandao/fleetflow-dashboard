@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-<script src="medicao.js?v=20261002"></script>
+<script src="medicao.js?v=20261002b"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -763,24 +763,28 @@ function getMeasData() {
 }
 
 async function exportExcel() {
-  // Layout pedido pela Stellantis (set/2026): "Demonstrativo de Faturamento" — aba Resumo +
-  // uma aba por praça/serviço com as colunas da aba Validação (Placa, Modelo, Data Inicial,
+  // Layout pedido pela Stellantis (set/2026): "Demonstrativo de Faturamento" — DUAS pastas por mês
+  // (Ativação e Desmobilização), cada uma com aba Resumo + uma aba por praça com as colunas da aba Validação (Placa, Modelo, Data Inicial,
   // Período de Cobrança, Valor Diária, Qtd, Carência, Desconto, Valor Devido, Check List,
   // Lavagem, Abastecimento, Valor Final, Observações, Validação, Comentários). Fórmulas vivas.
-  const { meas, periodo } = getMeasData();
-  if (!meas.length) return alert('Nenhum dado para exportar.');
   const sel = document.getElementById('mesSelect').value;
   const [year, month] = sel.split('-').map(Number);
+  const meas = calcMeasurement(year, month);   // todos os tipos — cada pasta filtra o seu
+  if (!meas.length) return alert('Nenhum dado para exportar.');
   try {
-    const { wb, naoClassificados } = buildMedicaoStellantis(meas, year, month, ExcelJS);
-    if (naoClassificados.length) alert(`Atenção: ${naoClassificados.length} veículo(s) sem praça ou tipo definidos ficaram fora da planilha: ${naoClassificados.map(m => m.plate).join(', ')}. Corrija as notes no sistema.`);
-    const buf = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = nomeArquivo(year, month);
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    // Duas pastas por mês: Apuracao Ativacao e Apuracao Desmobilizacao (independe do filtro da tela).
+    const pastas = buildMedicoesMes(meas, year, month, ExcelJS);
+    const semTipo = pastas[0].naoClassificados;
+    if (semTipo.length) alert(`Atenção: ${semTipo.length} veículo(s) sem praça ou tipo definidos ficaram fora das planilhas: ${semTipo.map(m => m.plate).join(', ')}. Corrija as notes no sistema.`);
+    for (const { wb, nome } of pastas) {
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nome;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
   } catch (e) {
     console.error(e); alert('Falha ao gerar a planilha: ' + e.message);
   }

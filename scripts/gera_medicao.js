@@ -5,8 +5,8 @@
  *   cd scripts && npm install          (uma vez — instala exceljs)
  *   node gera_medicao.js 2026 9 [pasta-de-saida]
  *
- * Lê os veículos direto do Supabase (chave anon, mesma do dashboard) e grava
- * "MM.AAAA - Demonstrativo Faturamento <Mês> <Ano> - CPB.xlsx" na pasta de saída
+ * Lê os veículos direto do Supabase (chave anon, mesma do dashboard) e grava DUAS pastas,
+ * "MM.AAAA - Apuracao Ativacao <Mês> <Ano> - CPB.xlsx" e "... Apuracao Desmobilizacao ...", na pasta de saída
  * (padrão: a pasta atual). Imprime o total por praça/serviço para conferência.
  */
 const path = require('path');
@@ -36,11 +36,13 @@ async function fetchVehicles() {
   const year = Number(y), month = Number(m) - 1;
   const vehicles = await fetchVehicles();
   const rows = M.calcMeasurementRows(vehicles, year, month);
-  const { wb, blocos, naoClassificados } = M.buildMedicaoStellantis(rows, year, month, ExcelJS);
-  for (const b of blocos) console.log(`${b.praca} ${b.tipo.padEnd(14)} ${String(b.n).padStart(3)} veíc.  diárias ${b.custodia}  check list ${b.fee}  total ${b.total}`);
-  console.log(`TOTAL ${rows.length} veículos  R$ ${rows.reduce((s, r) => s + r.total, 0)}`);
-  if (naoClassificados.length) console.warn('SEM PRAÇA/TIPO (fora da planilha):', naoClassificados.map(r => r.plate).join(', '));
-  const out = path.join(outDir || process.cwd(), M.nomeArquivo(year, month));
-  await wb.xlsx.writeFile(out);
-  console.log('gravado:', out);
+  for (const { wb, blocos, naoClassificados, servico, nome } of M.buildMedicoesMes(rows, year, month, ExcelJS)) {
+    for (const b of blocos) console.log(`${b.praca} ${b.tipo.padEnd(14)} ${String(b.n).padStart(3)} veíc.  diárias ${b.custodia}  check list ${b.fee}  total ${b.total}`);
+    const sub = rows.filter(r => r.tipo === servico);
+    console.log(`TOTAL ${servico}: ${sub.length} veículos  R$ ${sub.reduce((s, r) => s + r.total, 0)}`);
+    if (naoClassificados.length) console.warn('SEM PRAÇA/TIPO (fora das planilhas):', naoClassificados.map(r => r.plate).join(', '));
+    const out = path.join(outDir || process.cwd(), nome);
+    await wb.xlsx.writeFile(out);
+    console.log('gravado:', out);
+  }
 })().catch(e => { console.error(e); process.exit(1); });

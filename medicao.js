@@ -201,15 +201,16 @@
     return { ws, totalRow: rt, n };
   }
 
-  function addResumo(wb, blocos, year, month, rows) {
+  function addResumo(wb, blocos, year, month, rows, servico) {
+    const SERV = servico === 'Ativação' ? 'ATIVAÇÃO 0K' : 'DESMOBILIZAÇÃO';
     const ws = wb.addWorksheet('Resumo', { views: [{ showGridLines: false }], pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
     const mesNome = MESES[month]; const ultimo = rows.length ? rows.reduce((a, m) => m.periodoFim > a ? m.periodoFim : a, '0') : '';
     ws.columns = [{ width: 2 }, { width: 44 }, { width: 8 }, { width: 15 }, { width: 15 }, { width: 15 }, { width: 70 }];
     const put = (ref, v, font, fillArgb, numFmt, align) => { const c = ws.getCell(ref); c.value = v; if (font) c.font = Object.assign({ name: 'Calibri' }, font); if (fillArgb) c.fill = fill(fillArgb); if (numFmt) c.numFmt = numFmt; if (align) c.alignment = align; return c; };
 
-    ws.mergeCells('B1:G1'); put('B1', `RESUMO — MEDIÇÃO ${mesNome.toUpperCase()} ${year}  ·  FleetFlow · Stellantis  ·  CPB Auto Peças`, { size: 12, bold: true, color: { argb: C.BRANCO } }, C.NAVY, null, { vertical: 'middle' });
+    ws.mergeCells('B1:G1'); put('B1', `RESUMO — ${SERV}  ·  ${mesNome.toUpperCase()} ${year}  ·  FleetFlow · Stellantis  ·  CPB Auto Peças`, { size: 12, bold: true, color: { argb: C.BRANCO } }, C.NAVY, null, { vertical: 'middle' });
     ws.getRow(1).height = 21.75;
-    ws.mergeCells('B2:G2'); put('B2', `Competência: 01/${String(month + 1).padStart(2, '0')}/${year} a ${br(ultimo)}  |  Praças: Salvador (SSA), Recife (REC) e Natal (NAT)  |  Serviços: Ativação 0K e Desmobilização  |  Fatura a emitir: ${MESES[(month + 1) % 12]}/${month === 11 ? year + 1 : year}`, { size: 10, bold: true, color: { argb: C.NAVY } }, C.CLARO, null, { vertical: 'middle', wrapText: true });
+    ws.mergeCells('B2:G2'); put('B2', `Competência: 01/${String(month + 1).padStart(2, '0')}/${year} a ${br(ultimo)}  |  Praças: Salvador (SSA), Recife (REC) e Natal (NAT)  |  Serviço: ${servico === 'Ativação' ? 'Ativação 0 km' : 'Desmobilização'}  |  Fatura a emitir: ${MESES[(month + 1) % 12]}/${month === 11 ? year + 1 : year}`, { size: 10, bold: true, color: { argb: C.NAVY } }, C.CLARO, null, { vertical: 'middle', wrapText: true });
     ws.getRow(2).height = 30;
 
     const hdr = ['PRAÇA / SERVIÇO', 'VEÍC.', 'DIÁRIAS (R$)', 'CHECK LIST (R$)', 'TOTAL (R$)', 'OBSERVAÇÃO'];
@@ -229,20 +230,20 @@
     }
     for (const p of ['SSA', 'REC', 'NAT']) {
       if (!blocos.some(b => b.praca === p)) {
-        put(`B${r}`, `${p} — sem movimento em ${mesNome.toLowerCase()}`, { size: 10, italic: true, color: { argb: C.CINZA } }, C.CLARO2);
+        put(`B${r}`, `${p} — sem ${servico === 'Ativação' ? 'ativação' : 'desmobilização'} em ${mesNome.toLowerCase()}`, { size: 10, italic: true, color: { argb: C.CINZA } }, C.CLARO2);
         put(`C${r}`, 0, { size: 10 }, C.CLARO2, null, { horizontal: 'center' });
         ['D', 'E', 'F'].forEach(col => put(`${col}${r}`, 0, { size: 10 }, C.CLARO2, FMT_RS_INT));
         put(`G${r}`, '', null, C.CLARO2); ws.getRow(r).height = 18; r++;
       }
     }
     const rt = r + 1;
-    put(`B${rt}`, `⭐  TOTAL GERAL — ${mesNome.toUpperCase()} ${year}`, { size: 11, bold: true, color: { argb: C.BRANCO } }, C.NAVY);
+    put(`B${rt}`, `⭐  TOTAL ${SERV} — ${mesNome.toUpperCase()} ${year}`, { size: 11, bold: true, color: { argb: C.BRANCO } }, C.NAVY);
     put(`C${rt}`, { formula: `SUM(C5:C${r - 1})`, result: rows.length }, { size: 11, bold: true, color: { argb: C.BRANCO } }, C.NAVY, null, { horizontal: 'center' });
     ['D', 'E', 'F'].forEach(col => put(`${col}${rt}`, { formula: `SUM(${col}5:${col}${r - 1})`, result: rows.reduce((s, m) => s + ({ D: m.custodia, E: m.fee, F: m.total }[col]), 0) }, { size: 11, bold: true, color: { argb: C.BRANCO } }, C.NAVY, FMT_RS_INT));
     put(`G${rt}`, '', null, C.NAVY); ws.getRow(rt).height = 19.5;
 
     const notas = [
-      'Regras aplicadas: diária R$ 10,00 por dia de permanência (dia de entrada e dia de saída contam); carência de 7 dias corridos a partir da entrada; taxa de serviço (check list) lançada uma vez, no mês da entrada: R$ 190,00 ativação 0 km, R$ 88,00 desmobilização.',
+      `Regras aplicadas: diária R$ 10,00 por dia de permanência (dia de entrada e dia de saída contam); carência de 7 dias corridos a partir da entrada; taxa de serviço (check list) lançada uma vez, no mês da entrada: ${servico === 'Ativação' ? 'R$ 190,00 por ativação 0 km' : 'R$ 88,00 por desmobilização'}.`,
       'Cada aba "PRAÇA - Serviço" segue o layout do Demonstrativo de Faturamento (aba Validação enviada pela Stellantis): colunas, fórmulas e totais com SUBTOTAL na linha 1 (respeitam o filtro). As colunas Validação e Comentários ficam em branco para preenchimento da Stellantis.',
       'Veículos remanescentes de meses anteriores entram com período de cobrança a partir do dia 1º e sem carência; veículos que entraram no mês trazem a carência na coluna "Carência Diárias".',
       `Gerado pelo FleetFlow em ${br(iso(new Date()))}.`
@@ -252,33 +253,41 @@
     return ws;
   }
 
-  /** Monta a pasta completa. rows = calcMeasurementRows(...). Devolve ExcelJS.Workbook. */
-  function buildMedicaoStellantis(rows, year, month, ExcelJSLib) {
+  /** Monta a pasta de UM serviço ('Ativação' | 'Desmobilização'). rows = calcMeasurementRows(...).
+   *  Devolve { wb, blocos, naoClassificados, servico, nome }. */
+  function buildMedicaoStellantis(rows, year, month, ExcelJSLib, servico) {
     const ExcelJS = ExcelJSLib || (typeof require === 'function' ? require('exceljs') : self.ExcelJS);
+    if (!servico) servico = 'Ativação';
     const wb = new ExcelJS.Workbook();
     wb.creator = 'FleetFlow'; wb.created = new Date();
     const resumoPlaceholder = wb.addWorksheet('Resumo'); // garante 1ª posição; substituída abaixo
     const blocos = [];
+    const doServico = rows.filter(m => m.tipo === servico);
     for (const praca of ['SSA', 'REC', 'NAT']) {
-      for (const tipo of ['Ativação', 'Desmobilização']) {
-        const sub = rows.filter(m => m.praca === praca && m.tipo === tipo);
-        if (!sub.length) continue;
-        const { totalRow, n } = addDemonstrativo(wb, praca, tipo, sub, year, month, ExcelJS);
-        blocos.push({ name: sheetName(praca, tipo), praca, tipo, n, totalRow,
-          custodia: sub.reduce((s, m) => s + m.custodia, 0), fee: sub.reduce((s, m) => s + m.fee, 0), total: sub.reduce((s, m) => s + m.total, 0) });
-      }
+      const sub = doServico.filter(m => m.praca === praca);
+      if (!sub.length) continue;
+      const { totalRow, n } = addDemonstrativo(wb, praca, servico, sub, year, month, ExcelJS);
+      blocos.push({ name: sheetName(praca, servico), praca, tipo: servico, n, totalRow,
+        custodia: sub.reduce((s, m) => s + m.custodia, 0), fee: sub.reduce((s, m) => s + m.fee, 0), total: sub.reduce((s, m) => s + m.total, 0) });
     }
     wb.removeWorksheet(resumoPlaceholder.id);
-    const resumo = addResumo(wb, blocos, year, month, rows);
+    const resumo = addResumo(wb, blocos, year, month, doServico, servico);
     // move Resumo para a frente
     wb.worksheets.forEach((w, i) => { w.orderNo = w === resumo ? 0 : i + 1; });
     const outros = rows.filter(m => !['SSA', 'REC', 'NAT'].includes(m.praca) || !['Ativação', 'Desmobilização'].includes(m.tipo));
-    return { wb, blocos, naoClassificados: outros };
+    return { wb, blocos, naoClassificados: outros, servico, nome: nomeArquivo(year, month, servico) };
   }
 
-  function nomeArquivo(year, month) {
-    return `${String(month + 1).padStart(2, '0')}.${year} - Demonstrativo Faturamento ${MESES[month]} ${year} - CPB.xlsx`;
+  /** As duas pastas do mês (Ativação e Desmobilização), na ordem. */
+  function buildMedicoesMes(rows, year, month, ExcelJSLib) {
+    return ['Ativação', 'Desmobilização'].map(s => buildMedicaoStellantis(rows, year, month, ExcelJSLib, s));
   }
 
-  return { RULES, UNIDAS_ID, MESES, parsePraca, parseType, calcMeasurementRows, buildMedicaoStellantis, nomeArquivo, observacao };
+  // Ex.: "09.2026 - Apuracao Ativacao Setembro 2026 - CPB.xlsx" (mesmo padrão do envio de agosto)
+  function nomeArquivo(year, month, servico) {
+    const serv = servico === 'Desmobilização' ? 'Desmobilizacao' : 'Ativacao';
+    return `${String(month + 1).padStart(2, '0')}.${year} - Apuracao ${serv} ${MESES[month]} ${year} - CPB.xlsx`;
+  }
+
+  return { RULES, UNIDAS_ID, MESES, parsePraca, parseType, calcMeasurementRows, buildMedicaoStellantis, buildMedicoesMes, nomeArquivo, observacao };
 }));
